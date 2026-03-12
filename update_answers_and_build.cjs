@@ -1,0 +1,10 @@
+const fs = require('fs');
+function replaceOne(path, oldValue, newValue) {
+  const text = fs.readFileSync(path, 'utf8');
+  if (!text.includes(oldValue)) throw new Error('Missing snippet in ' + path);
+  fs.writeFileSync(path, text.replace(oldValue, newValue));
+}
+replaceOne('C:/sss/src/types.ts', '  acceptedAnswers?: string[];', '  acceptedAnswers?: string[];\r\n  primaryAnswer?: string;');
+replaceOne('C:/sss/src/components/Setup.tsx', \"      items = processedVerbs.map(v => {\r\n        const questionValue = direction === 'en_ru' ? v.base : getPromptValue(v.ru);\r\n        const answerVariants = direction === 'en_ru' ? toVariants(v.ru) : [v.base];\r\n\r\n        return {\r\n          question: questionValue,\r\n          answer: toDisplayValue(answerVariants),\r\n          acceptedAnswers: answerVariants,\r\n          past: v.past,\r\n          participle: v.participle\r\n        };\r\n      });\", \"      items = processedVerbs.map(v => {\r\n        const questionValue = direction === 'en_ru' ? v.base : getPromptValue(v.ru);\r\n        const answerVariants = direction === 'en_ru' ? toVariants(v.ru) : [v.base];\r\n\r\n        return {\r\n          question: questionValue,\r\n          answer: getPromptValue(answerVariants),\r\n          acceptedAnswers: answerVariants,\r\n          primaryAnswer: getPromptValue(answerVariants),\r\n          past: v.past,\r\n          participle: v.participle\r\n        };\r\n      });\");
+replaceOne('C:/sss/src/components/Setup.tsx', \"        return {\r\n          question: questionValue,\r\n          answer: toDisplayValue(answerVariants),\r\n          acceptedAnswers: answerVariants\r\n        };\", \"        return {\r\n          question: questionValue,\r\n          answer: getPromptValue(answerVariants),\r\n          acceptedAnswers: answerVariants,\r\n          primaryAnswer: getPromptValue(answerVariants)\r\n        };\");
+replaceOne('C:/sss/src/components/Test.tsx', 'currentItem.answer', 'currentItem.primaryAnswer ?? currentItem.answer');
