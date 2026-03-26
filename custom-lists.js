@@ -2543,12 +2543,35 @@ css.push("@media (max-width: 760px){.dcl-overlay{padding:0;align-items:stretch;j
 function keepFocusedQuizInputVisibleFromViewport() {
  const input = document.getElementById("dcl-quiz-input");
  const primaryAction = document.getElementById("dcl-quiz-primary-action");
+ const viewport = typeof window !== "undefined" ? (window.visualViewport ? window.visualViewport : null) : null;
+ let viewportHeight = 0;
+ let layoutHeight = 0;
+ let keyboardInset = 0;
+ let targetPadding = 0;
  if (!input) { return; }
  if (!isQuizMobileViewport()) { return; }
  if (document.activeElement !== input) { return; }
+ if (!quizBody) { return; }
+ viewportHeight = viewport ? Math.round(viewport.height) : Math.round(window.innerHeight ? window.innerHeight : 0);
+ layoutHeight = Math.max(Math.round(window.innerHeight ? window.innerHeight : viewportHeight), viewportHeight);
+ if (viewport) {
+  keyboardInset = Math.max(0, layoutHeight - Math.round(viewport.height + viewport.offsetTop));
+ }
+ targetPadding = Math.max(24, keyboardInset + 20);
+ input.style.scrollMarginTop = "24px";
+ input.style.scrollMarginBottom = String(targetPadding + 72) + "px";
+ quizBody.style.overflowY = "auto";
+ quizBody.style.webkitOverflowScrolling = "touch";
+ quizBody.style.paddingBottom = "calc(" + String(targetPadding) + "px + env(safe-area-inset-bottom))";
  if (primaryAction) {
+  primaryAction.style.scrollMarginBottom = String(targetPadding + 16) + "px";
   if (typeof primaryAction.scrollIntoView === "function") {
-   try { primaryAction.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "auto" }); return; } catch (error) {}
+   try { primaryAction.scrollIntoView({ block: "end", inline: "nearest", behavior: "auto" }); return; } catch (error) {}
+  }
+ }
+ if (input.form) {
+  if (typeof input.form.scrollIntoView === "function") {
+   try { input.form.scrollIntoView({ block: "end", inline: "nearest", behavior: "auto" }); return; } catch (error) {}
   }
  }
  if (typeof input.scrollIntoView === "function") {
