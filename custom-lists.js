@@ -139,7 +139,56 @@ function primeNativeTapButton(element) {
   }, { passive: false }); 
   return element; 
  } 
- function bindMobileInputFocus(element, shouldFocus) {
+function lockDocumentScroll() {
+ if (typeof document === "undefined") { return; }
+ const body = document.body;
+ const doc = document.documentElement;
+ if (!body) { return; }
+ if (!doc) { return; }
+ const current = Number(body.__dclScrollLockCount ? body.__dclScrollLockCount : 0) + 1;
+ body.__dclScrollLockCount = current;
+ if (current > 1) { return; }
+ let scrollY = 0;
+ if (typeof window !== "undefined") {
+  scrollY = Number(window.scrollY ? window.scrollY : (window.pageYOffset ? window.pageYOffset : 0));
+ }
+ doc.classList.add("dcl-locked");
+ body.classList.add("dcl-locked");
+ body.dataset.dclScrollTop = String(scrollY);
+ body.style.position = "fixed";
+ body.style.top = "-" + scrollY + "px";
+ body.style.left = "0";
+ body.style.right = "0";
+ body.style.width = "100%";
+ body.style.overflow = "hidden";
+ doc.style.overflow = "hidden";
+}
+function unlockDocumentScroll() {
+ if (typeof document === "undefined") { return; }
+ const body = document.body;
+ const doc = document.documentElement;
+ if (!body) { return; }
+ if (!doc) { return; }
+ const current = Number(body.__dclScrollLockCount ? body.__dclScrollLockCount : 0);
+ if (current > 1) {
+  body.__dclScrollLockCount = current - 1;
+  return;
+ }
+ body.__dclScrollLockCount = 0;
+ const scrollY = Number(body.dataset.dclScrollTop ? body.dataset.dclScrollTop : "0");
+ doc.classList.remove("dcl-locked");
+ body.classList.remove("dcl-locked");
+ body.style.position = "";
+ body.style.top = "";
+ body.style.left = "";
+ body.style.right = "";
+ body.style.width = "";
+ body.style.overflow = "";
+ doc.style.overflow = "";
+ delete body.dataset.dclScrollTop;
+ if (typeof window !== "undefined") { window.scrollTo(0, scrollY); }
+}
+function bindMobileInputFocus(element, shouldFocus) {
   if (!element) { return element; }
   if (element.__dclMobileFocusBound) { return element; }
   const canFocus = function () {
@@ -413,11 +462,11 @@ function addHistorySession(session) {
  ensureTriggerPlacement();
  normalizeBuiltinTestUi();
  }
- function showPanel() { state.open = true; overlay.hidden = false; document.documentElement.classList.add("dcl-locked"); document.body.classList.add("dcl-locked"); }
+ function showPanel() { state.open = true; overlay.hidden = false; lockDocumentScroll(); }
 function openPanel() { loadStore(); state.editorListId = ""; state.entryMode = ""; showPanel(); render(); }
 function openCreatePanel() { loadStore(); state.notice = ""; showPanel(); createList(); }
 function openHomeEditor(listId) { loadStore(); showPanel(); openListEditor(listId); }
- function closePanel() { state.open = false; overlay.hidden = true; document.documentElement.classList.remove("dcl-locked"); document.body.classList.remove("dcl-locked"); }
+ function closePanel() { state.open = false; overlay.hidden = true; if (!quizState.open) { unlockDocumentScroll(); } }
  function makeUniqueListName() {
  const baseName = "Новый список";
  let name = baseName;
@@ -1047,8 +1096,7 @@ function startHistoryReplay(sessionId, mistakesOnly) {
  if (!list) { window.alert("Could not resolve the source list."); return; }
  if (!entries.length) { window.alert("There are no words to repeat in this attempt."); return; }
  if (!showQuizOverlay()) { window.alert("Could not open the quiz window. Reload the page."); return; }
- document.documentElement.classList.add("dcl-locked");
- document.body.classList.add("dcl-locked");
+ lockDocumentScroll();
  quizState.open = true;
  quizState.step = "test";
  quizState.listId = replay.listId;
@@ -1384,9 +1432,8 @@ function closeQuiz() {
  quizState.finishedEarly = false;  
  quizState.historySettings = null;  
   quizState.mobileResultsOpen = false;  
- if (!state.open) {  
-  document.documentElement.classList.remove("dcl-locked");  
-  document.body.classList.remove("dcl-locked");  
+ if (!state.open) {
+  unlockDocumentScroll();
  }  
  if (quizOverlay) {  
   quizOverlay.hidden = true;
@@ -1615,22 +1662,7 @@ function beginQuizTest() {
  quizState.inputs = quizState.entries.map(function () { return ""; });  
  quizState.finishedEarly = false;  
  syncQuizIndex(0);  
- renderQuiz();  
-  if (typeof document !== "undefined") {
-   const activeInput = document.getElementById("dcl-quiz-input");
-   if (activeInput) {
-    activeInput.focus();
-    if (typeof activeInput.select === "function") { try { activeInput.select(); } catch (error) {} }
-   }
-   if (typeof window !== "undefined") {
-    window.requestAnimationFrame(function () {
-     const retryInput = document.getElementById("dcl-quiz-input");
-     if (!retryInput) { return; }
-     retryInput.focus();
-     if (typeof retryInput.select === "function") { try { retryInput.select(); } catch (error) {} }
-    });
-   }
-  }
+ renderQuiz();
 }
 function startListQuiz(listId) {  
  let list = getListById(listId);  
@@ -1641,8 +1673,7 @@ function startListQuiz(listId) {
  if (!list) { window.alert("Could not open this list. Try again."); return; }
  if (!list.entries.length) { window.alert("This list has no words yet."); return; }
  if (!showQuizOverlay()) { window.alert("Could not open the quiz window. Reload the page."); return; }
- document.documentElement.classList.add("dcl-locked");  
- document.body.classList.add("dcl-locked");  
+ lockDocumentScroll();  
  quizState.open = true;  
  quizState.step = "setup";  
  quizState.listId = listId;  
@@ -2080,12 +2111,12 @@ card.appendChild(node("div", "dcl-label", "Порядок слов"));
  screen.appendChild(card);
  quizBody.appendChild(screen);
   window.setTimeout(function () {
-   const currentInput = document.getElementById("dcl-quiz-input");
-   const primaryAction = document.getElementById("dcl-quiz-primary-action");
-   if (quizState.checked) { if (primaryAction) { primaryAction.focus(); } return; }
-   if (!currentInput) { if (primaryAction) { primaryAction.focus(); } return; }
-   currentInput.focus();
-  }, 0);
+  const currentInput = document.getElementById("dcl-quiz-input");
+  const primaryAction = document.getElementById("dcl-quiz-primary-action");
+  if (quizState.checked) { if (primaryAction) { primaryAction.focus(); } return; }
+  if (!currentInput) { if (primaryAction) { primaryAction.focus(); } return; }
+  if (!isQuizMobileViewport()) { currentInput.focus(); }
+ }, 0);
 }  
 function installUi() {  
 
