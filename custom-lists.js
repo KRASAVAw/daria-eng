@@ -6,7 +6,7 @@
  const BUILTIN_SOURCES = { irregular: "builtin-irregular", food: "builtin-food" };
  const HISTORY_KEY = "dasha_english_history_v1";
  const state = { open: false, lists: [], deletedBuiltins: [], selectedId: "", newListName: "", renameName: "", renameEmoji: "", term: "", translations: "", bulk: "", entrySearch: "", editingEntryId: "", editorListId: "", entryMode: "", notice: "", storeUpdatedAt: 0 };
- const quizState = { open: false, step: "setup", listId: "", entries: [], pool: [], basePool: [], direction: "en_ru", count: 10, baseCount: 10, shuffle: false, index: 0, input: "", checked: false, results: [], inputs: [], finishedEarly: false, historySettings: null };
+ const quizState = { open: false, step: "setup", listId: "", entries: [], pool: [], basePool: [], direction: "en_ru", count: 10, baseCount: 10, shuffle: false, index: 0, input: "", checked: false, results: [], inputs: [], finishedEarly: false, historySettings: null, mobileResultsOpen: false };
  let overlay;
  let body;
  let floatingTrigger;
@@ -364,16 +364,16 @@ function openHomeEditor(listId) { loadStore(); showPanel(); openListEditor(listI
  if (!draft) {  
   state.notice = "Укажи слово и хотя бы один перевод.";  
   render();  
-  window.setTimeout(function () {  
-   const currentTermInput = document.getElementById("dcl-entry-term");  
-   const currentTranslationsInput = document.getElementById("dcl-entry-translations");  
-   if (!liveTerm) {  
-    if (currentTermInput) { currentTermInput.focus(); return; }  
-   }  
-   if (!liveTranslations) {  
-    if (currentTranslationsInput) { currentTranslationsInput.focus(); }  
-   }  
-  }, 0);  
+  window.setTimeout(function () {
+   const currentTermInput = document.getElementById("dcl-entry-term");
+   const currentTranslationsInput = document.getElementById("dcl-entry-translations");
+   if (!liveTerm) {
+    if (currentTermInput) { currentTermInput.focus(); return; }
+   }
+   if (!liveTranslations) {
+    if (currentTranslationsInput) { currentTranslationsInput.focus(); }
+   }
+  }, 0);
   return;  
  } 
  nextEntries = mergeEntries(selected.entries.filter(function (entry) { return entry.id !== editingEntryId; }), [draft]);  
@@ -1241,6 +1241,7 @@ function closeQuiz() {
  quizState.inputs = [];  
  quizState.finishedEarly = false;  
  quizState.historySettings = null;  
+  quizState.mobileResultsOpen = false;  
  if (!state.open) {  
   document.documentElement.classList.remove("dcl-locked");  
   document.body.classList.remove("dcl-locked");  
@@ -1275,6 +1276,9 @@ function clampQuizCount(total, value) {
  nextValue = Math.max(1, nextValue);  
  return Math.min(safeTotal, nextValue);  
 }  
+function isQuizMobileViewport() {
+ return Math.min(window.innerWidth,760)===window.innerWidth;
+}
 function getCurrentQuizEntry() {
  const entry = quizState.entries[quizState.index];
  return entry ? entry : null;
@@ -1316,6 +1320,7 @@ function getNextQuizIndex(startIndex) {
 function openQuizResults(finishedEarly) {
  const completedResults = safeArray(quizState.results).filter(Boolean);
  quizState.finishedEarly = Boolean(finishedEarly);
+  quizState.mobileResultsOpen = false;
  if (completedResults.length) { saveQuizHistory(); }
  quizState.step = "results";
  renderQuiz();
@@ -1498,6 +1503,7 @@ function startListQuiz(listId) {
  quizState.inputs = [];  
  quizState.finishedEarly = false;  
  quizState.historySettings = null;  
+  quizState.mobileResultsOpen = false;  
  renderQuiz();  
  window.setTimeout(showQuizOverlay, 0);  
 }
@@ -1704,6 +1710,29 @@ function renderQuiz() {
  correctCount = results.filter(function (item) { return item.isCorrect; }).length;
  mistakes = results.filter(function (item) { return !item.isCorrect; });
  score = results.length ? Math.round(correctCount / results.length * 100) : 0;
+  if (!isQuizMobileViewport()) { quizState.mobileResultsOpen = false; }
+  if (quizState.mobileResultsOpen) {
+   if (results.length) {
+    screen = node("div", "dcl-results-screen dcl-results-mobile-screen");
+    topBar = node("div", "dcl-quiz-topbar");
+    button = node("button", "dcl-quiz-icon-btn", "←");
+    button.type = "button";
+    button.addEventListener("click", function () { quizState.mobileResultsOpen = false; renderQuiz(); });
+    topBar.appendChild(button);
+    stageCopy = node("div", "dcl-quiz-progress");
+    stageCopy.appendChild(node("div", "dcl-results-mobile-title", "Все ответы"));
+    stageCopy.appendChild(node("div", "dcl-results-mobile-subtitle", String(results.length) + " слов"));
+    topBar.appendChild(stageCopy);
+    topBar.appendChild(node("div", "dcl-quiz-spacer"));
+    screen.appendChild(topBar);
+    listWrap = node("div", "dcl-results-list dcl-results-list-fullscreen");
+    results.forEach(function (item) { listWrap.appendChild(createQuizResultRow(item)); });
+    screen.appendChild(listWrap);
+    quizBody.appendChild(screen);
+    return;
+   }
+   quizState.mobileResultsOpen = false;
+  }
  screen = node("div", "dcl-results-screen");
  head = node("div", "dcl-results-hero");
  head.appendChild(node("div", "dcl-results-trophy", "🏆"));
@@ -1737,8 +1766,15 @@ function renderQuiz() {
  } else if (quizState.finishedEarly) {
  card.appendChild(node("div", "dcl-results-copy", "Тест завершен раньше времени. Уже отвечено: " + String(results.length) + " из " + String(quizState.entries.length) + "."));
  } else {
- card.appendChild(node("div", "dcl-results-copy", mistakes.length ? "Посмотри свои ответы ниже и пройди ошибки еще раз." : "Идеально. Все ответы в этом тесте правильные."));
+  card.appendChild(node("div", "dcl-results-copy", mistakes.length ? "Посмотри свои ответы ниже." : "Идеально. Все ответы в этом тесте правильные."));
  }
+  if (results.length) {
+   if (isQuizMobileViewport()) {
+    row = node("div", "dcl-results-mobile-open");
+    row.appendChild(makeButton("dcl-btn dcl-btn-muted", "Открыть весь список", function () { quizState.mobileResultsOpen = true; renderQuiz(); }));
+    card.appendChild(row);
+   }
+  }
  listWrap = node("div", "dcl-results-list");
  results.forEach(function (item) { listWrap.appendChild(createQuizResultRow(item)); });
  card.appendChild(listWrap);
@@ -1780,6 +1816,12 @@ function renderQuiz() {
  quizState.input = input.value;
  quizState.inputs[quizState.index] = input.value;
  });
+  input.addEventListener("keydown", function (event) {
+   if (event.key !== "Enter" || event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) { return; }
+   event.preventDefault();
+   if (quizState.checked) { nextQuizStep(); return; }
+   submitQuizAnswer();
+  });
  input.disabled = quizState.checked;
  form.appendChild(input);
  message = createQuizFeedback(entry);
@@ -1797,7 +1839,9 @@ function renderQuiz() {
  } else {
   row.appendChild(node("div", "dcl-quiz-spacer"));
  }
- row.appendChild(makeButton("dcl-btn dcl-quiz-action-primary", quizState.checked ? "\u0414\u0430\u043b\u044c\u0448\u0435" : "\u041f\u0440\u043e\u0432\u0435\u0440\u0438\u0442\u044c", null, "submit"));
+  button = makeButton("dcl-btn dcl-quiz-action-primary", quizState.checked ? "\u0414\u0430\u043b\u044c\u0448\u0435" : "\u041f\u0440\u043e\u0432\u0435\u0440\u0438\u0442\u044c", null, "submit");
+  button.id = "dcl-quiz-primary-action";
+  row.appendChild(button);
  if (!quizState.checked) {
   button = makeButton("dcl-btn dcl-btn-light dcl-quiz-action-secondary", "\u2192", skipQuizStep);
   button.setAttribute("aria-label", "\u041f\u0440\u043e\u043f\u0443\u0441\u0442\u0438\u0442\u044c \u0441\u043b\u043e\u0432\u043e");
@@ -1812,12 +1856,13 @@ function renderQuiz() {
  screen.appendChild(createQuizJumpBar());
  screen.appendChild(card);
  quizBody.appendChild(screen);
- window.setTimeout(function () {
- const currentInput = document.getElementById("dcl-quiz-input");
- if (!currentInput) { return; }
- if (quizState.checked) { return; }
- currentInput.focus();
- }, 0);
+  window.setTimeout(function () {
+   const currentInput = document.getElementById("dcl-quiz-input");
+   const primaryAction = document.getElementById("dcl-quiz-primary-action");
+   if (quizState.checked) { if (primaryAction) { primaryAction.focus(); } return; }
+   if (!currentInput) { if (primaryAction) { primaryAction.focus(); } return; }
+   currentInput.focus();
+  }, 0);
 }  
 function installUi() {  
 
@@ -1936,13 +1981,13 @@ function installUi() {
  css.push(".dcl-quiz-subactions{display:none}");
  css.push(".dcl-quiz-action-primary{flex:1 1 auto;min-height:60px;font-size:20px}");
  css.push(".dcl-quiz-action-secondary{flex:0 0 60px;min-width:60px;min-height:60px;padding:0;font-size:28px}");
- css.push(".dcl-results-screen{display:flex;flex-direction:column;gap:20px}");
- css.push(".dcl-results-hero{display:flex;flex-direction:column;align-items:center;gap:14px;padding-top:4px}");
+ css.push(".dcl-results-screen{display:flex;flex-direction:column;gap:20px;flex:1 1 auto;min-height:0;width:100%;min-width:0;height:100%;overflow:hidden}");
+ css.push(".dcl-results-hero{display:flex;flex-direction:column;align-items:center;gap:14px;padding-top:4px;flex:0 0 auto}");
  css.push(".dcl-results-trophy{font-size:64px;line-height:1}");
  css.push(".dcl-results-heading{display:flex;align-items:center;gap:14px;width:100%}");
  css.push(".dcl-results-heading-line{height:1px;flex:1;background:rgba(255,255,255,.24)}");
  css.push(".dcl-results-heading-text{color:#fff;font-size:16px;font-weight:900;letter-spacing:.12em;text-transform:uppercase}");
- css.push(".dcl-results-card{display:flex;flex-direction:column;gap:22px;padding:26px 22px;border-radius:30px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04)}");
+ css.push(".dcl-results-card{display:flex;flex-direction:column;gap:22px;padding:26px 22px;border-radius:30px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);width:100%;min-width:0;box-sizing:border-box;flex:1 1 auto;min-height:0;overflow:hidden}");
  css.push(".dcl-results-card-title{text-align:center;color:#fff;font-size:28px;font-weight:800;line-height:1.2}");
  css.push(".dcl-results-stats{display:flex;align-items:flex-end;justify-content:space-between;gap:16px}");
  css.push(".dcl-results-stat{flex:1;text-align:center}");
@@ -1951,7 +1996,7 @@ function installUi() {
  css.push(".dcl-results-stat-score .dcl-results-stat-value{color:#fff;font-size:70px;letter-spacing:-.05em}");
  css.push(".dcl-results-stat-score .dcl-results-stat-value span{color:#d2bdc4;font-size:34px}");
  css.push(".dcl-results-copy{text-align:center;color:#dcc4cb;font-size:18px;line-height:1.55}");
- css.push(".dcl-results-list{display:flex;flex-direction:column;gap:12px;max-height:48vh;overflow:auto;padding-right:4px}");
+ css.push(".dcl-results-list{display:flex;flex-direction:column;gap:12px;flex:1 1 auto;min-height:0;max-height:none;width:100%;min-width:0;overflow:auto;padding-right:4px;box-sizing:border-box}");
  css.push(".dcl-results-item{display:flex;gap:14px;align-items:flex-start;padding:16px;border-radius:22px;background:rgba(255,255,255,.08)}");
  css.push(".dcl-results-status{display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:999px;font-size:22px;font-weight:900;line-height:1;flex:0 0 auto}");
  css.push(".dcl-results-status-good{background:rgba(63,184,128,.14);color:#bff5d5}");
@@ -1961,7 +2006,11 @@ function installUi() {
  css.push(".dcl-results-item-prompt{color:#fff;font-size:24px;font-weight:800;word-break:break-word}");
  css.push(".dcl-results-item-answer{color:#d8c9ce;font-size:20px;font-weight:700;text-align:right;word-break:break-word}");
  css.push(".dcl-results-item-user{display:inline-flex;margin-top:12px;padding:8px 12px;border-radius:12px;background:#fff;color:#ff5a77;font-size:18px;font-weight:700;text-decoration:line-through;max-width:100%;word-break:break-word}");
- css.push(".dcl-results-actions{display:flex;flex-wrap:wrap;gap:14px}");
+ css.push(".dcl-results-actions{display:flex;flex-wrap:wrap;gap:14px;flex:0 0 auto}");
+  css.push(".dcl-results-mobile-open{display:none}");
+  css.push(".dcl-results-mobile-title{color:#fff;font-size:22px;font-weight:800;line-height:1.2}");
+  css.push(".dcl-results-mobile-subtitle{margin-top:4px;color:#c9afb7;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}");
+  css.push(".dcl-results-list-fullscreen{flex:1 1 auto;min-height:0;max-height:none;padding-right:2px}");
  css.push(".dcl-results-actions .dcl-btn{flex:1 1 220px;min-height:64px;font-size:18px}");
  css.push(".dcl-builtin-stage-card{display:flex!important;flex-direction:column!important;min-height:min(72vh,760px)!important;padding:22px 18px!important;border-radius:30px!important;border:1px solid rgba(255,255,255,.08)!important;background:rgba(255,255,255,.04)!important;overflow:hidden!important;margin-bottom:0!important}");
 css.push(".dcl-builtin-stage-inner{display:flex!important;flex:1 1 auto!important;min-height:100%!important;height:100%!important;flex-direction:column!important;justify-content:space-between!important;gap:24px!important}");
@@ -1979,7 +2028,7 @@ css.push(".dcl-builtin-action-primary{flex:1 1 auto!important;min-height:60px!im
 css.push(".dcl-builtin-action-secondary{flex:0 0 60px!important;min-width:60px!important;min-height:60px!important;padding:0!important;border-radius:18px!important;background:rgba(255,255,255,.08)!important;color:#fff!important;box-shadow:none!important;display:inline-flex!important;align-items:center!important;justify-content:center!important}");
 css.push(".dcl-builtin-feedback{width:100%!important;margin-top:0!important}");
 css.push(".dcl-builtin-feedback .dcl-reveal-answer{margin-top:14px!important}");
-css.push("@media (max-width: 760px){.dcl-overlay{padding:0;align-items:stretch;justify-content:stretch}.dcl-panel{width:100%;height:100%;min-height:100vh;min-height:100dvh;max-height:none;border-radius:0;border:0}.dcl-head{padding:calc(16px + env(safe-area-inset-top)) 16px 16px}.dcl-body{flex:1;min-height:0;padding:16px 16px calc(96px + env(safe-area-inset-bottom));overflow-y:auto}.dcl-main{padding-bottom:12px}.dcl-row{gap:14px}.dcl-entry-list{padding-right:0}.dcl-entry{padding:14px}.dcl-fab{right:12px;bottom:max(12px,env(safe-area-inset-bottom))}.dcl-entry-actions,.dcl-row .dcl-btn,.dcl-row >.dcl-field{width:100%}.dcl-quiz-body{padding:12px 14px calc(16px + env(safe-area-inset-bottom));overflow:hidden}.dcl-quiz-stage-card{flex:1 1 auto;min-height:0;padding:18px 16px}.dcl-quiz-step-number{font-size:72px}.dcl-quiz-stage-hint{font-size:14px}.dcl-quiz-stage-word{font-size:clamp(28px,10vw,46px)}.dcl-quiz-answer-input{font-size:18px;padding:16px 18px}.dcl-quiz-jump-list{gap:6px;padding-bottom:0;min-width:0;width:100%}.dcl-quiz-jump-arrow{min-width:0;height:40px;padding:0 4px;font-size:18px}.dcl-quiz-jump-btn{min-width:0;height:40px;padding:0 4px;font-size:14px}.dcl-quiz-jump-btn-disabled{opacity:.45}.dcl-quiz-finish-top{width:auto;min-height:44px}.dcl-quiz-action-primary{min-height:56px}.dcl-quiz-action-secondary{flex:0 0 56px;min-width:56px;min-height:56px;font-size:24px}.dcl-results-actions .dcl-btn{width:100%;min-height:56px}.dcl-results-card{padding:22px 18px}.dcl-results-card-title{font-size:24px}.dcl-results-stats{gap:10px}.dcl-results-stat-value{font-size:34px}.dcl-results-stat-score .dcl-results-stat-value{font-size:52px}.dcl-results-stat-score .dcl-results-stat-value span{font-size:26px}.dcl-results-copy{font-size:16px}.dcl-results-list{max-height:none}.dcl-results-item{padding:14px}.dcl-results-item-head{flex-direction:column;gap:6px}.dcl-results-item-prompt{font-size:18px}.dcl-results-item-answer{text-align:left;font-size:16px}.dcl-results-item-user{font-size:16px}}");
+css.push("@media (max-width: 760px){.dcl-overlay{padding:0;align-items:stretch;justify-content:stretch}.dcl-quiz-overlay{padding:0;align-items:stretch;justify-content:stretch}.dcl-panel{width:100%;height:100%;min-height:100vh;min-height:100dvh;max-height:none;border-radius:0;border:0}.dcl-quiz-overlay .dcl-panel{width:100%;height:100%;min-height:100vh;min-height:100dvh;max-height:none;border-radius:0;border:0}.dcl-head{padding:calc(16px + env(safe-area-inset-top)) 16px 16px}.dcl-body{flex:1;min-height:0;padding:16px 16px calc(96px + env(safe-area-inset-bottom));overflow-y:auto}.dcl-main{padding-bottom:12px}.dcl-row{gap:14px}.dcl-entry-list{padding-right:0}.dcl-entry{padding:14px}.dcl-fab{right:12px;bottom:max(12px,env(safe-area-inset-bottom))}.dcl-entry-actions,.dcl-row .dcl-btn,.dcl-row >.dcl-field{width:100%}.dcl-quiz-body{padding:12px 14px calc(16px + env(safe-area-inset-bottom));overflow:hidden}.dcl-quiz-stage-card{flex:1 1 auto;min-height:0;padding:18px 16px}.dcl-quiz-step-number{font-size:72px}.dcl-quiz-stage-hint{font-size:14px}.dcl-quiz-stage-word{font-size:clamp(28px,10vw,46px)}.dcl-quiz-answer-input{font-size:18px;padding:16px 18px}.dcl-quiz-jump-list{gap:6px;padding-bottom:0;min-width:0;width:100%}.dcl-quiz-jump-arrow{min-width:0;height:40px;padding:0 4px;font-size:18px}.dcl-quiz-jump-btn{min-width:0;height:40px;padding:0 4px;font-size:14px}.dcl-quiz-jump-btn-disabled{opacity:.45}.dcl-quiz-finish-top{width:auto;min-height:44px}.dcl-quiz-action-primary{min-height:56px}.dcl-quiz-action-secondary{flex:0 0 56px;min-width:56px;min-height:56px;font-size:24px}.dcl-results-actions .dcl-btn{width:100%;min-height:56px}.dcl-results-mobile-open{display:flex}.dcl-results-mobile-open .dcl-btn{width:100%;min-height:52px}.dcl-results-card{padding:22px 18px}.dcl-results-card-title{font-size:24px}.dcl-results-stats{gap:10px}.dcl-results-stat-value{font-size:34px}.dcl-results-stat-score .dcl-results-stat-value{font-size:52px}.dcl-results-stat-score .dcl-results-stat-value span{font-size:26px}.dcl-results-copy{font-size:16px}.dcl-results-list{max-height:none}.dcl-results-item{padding:14px}.dcl-results-item-head{flex-direction:column;gap:6px}.dcl-results-item-prompt{font-size:18px}.dcl-results-item-answer{text-align:left;font-size:16px}.dcl-results-item-user{font-size:16px}}");
  style.textContent = css.join("");
  document.head.appendChild(style);
  overlay = node("div", "dcl-overlay");
