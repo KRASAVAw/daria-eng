@@ -48,97 +48,171 @@
  } 
  return null; 
  } 
- function bindPress(element, handler) { 
-  let lastPressAt = 0; 
-  let touchStart = null; 
-  let touchMoved = false;
-  const resetTouch = function () { touchStart = null; touchMoved = false; }; 
-  const markTouchStart = function (event) { touchStart = getTouchPoint(event); touchMoved = false; }; 
-  const markTouchMove = function (event) { 
-   if (!touchStart) { return; } 
-   const point = getTouchPoint(event); 
-   if (!point) { return; } 
-   const deltaX = Math.abs(point.x - touchStart.x); 
-   const deltaY = Math.abs(point.y - touchStart.y); 
-   if (deltaX > 12) { touchMoved = true; return; } 
-   if (deltaY > 12) { touchMoved = true; } 
-  }; 
-  const run = function (event) { 
-   const now = Date.now(); 
-   if (event) { 
-    if (event.type === 'pointerup') { 
-     if (event.pointerType === 'mouse') { 
-      if (event.button !== 0) { return; } 
-     } else if (event.pointerType === 'touch') { 
-      return; 
-     } else if (event.pointerType) { 
-      lastPressAt = now; 
-     } 
-    } 
-    if (event.type === 'touchend') { 
-     if (touchMoved) { resetTouch(); return; } 
-     lastPressAt = now; 
-     resetTouch(); 
-     if (event.cancelable) { event.preventDefault(); } 
-    } 
-    if (event.type === 'touchcancel') { resetTouch(); return; }
-    if (event.type === 'click') { 
-     if (now - lastPressAt < 700) { return; } 
-    } 
-   } 
-   handler(event); 
-  }; 
-  element.addEventListener('touchstart', markTouchStart, { passive: true }); 
-  element.addEventListener('touchmove', markTouchMove, { passive: true }); 
-  element.addEventListener('touchcancel', run, { passive: true }); 
-  element.addEventListener('touchend', run, { passive: false }); 
-  if (typeof window !== 'undefined') { 
-   if ('PointerEvent' in window) { 
-    element.addEventListener('pointerup', run); 
-   } 
+ 
+function bindPress(element, handler) { 
+ let lastPressAt = 0; 
+ let touchStart = null; 
+ let touchMoved = false; 
+ let touchScrollRoot = null; 
+ let touchScrollTop = 0; 
+ function findScrollRoot(node) { 
+  let root = null; 
+  if (!node) { return document.body; } 
+  if (!node.closest) { return document.body; } 
+  root = node.closest('.dcl-body, .dcl-results-list, .dcl-entry-list, .dcl-home-scroll'); 
+  if (root) { return root; } 
+  return document.body; 
+ } 
+ function clearTouchTracking() { 
+  if (typeof window === 'undefined') { return; } 
+  window.removeEventListener('touchmove', markTouchMove, true); 
+  window.removeEventListener('touchend', markTouchEndCheck, true); 
+  window.removeEventListener('touchcancel', resetTouch, true); 
+ } 
+ function resetTouch() { 
+  touchStart = null; 
+  touchMoved = false; 
+  touchScrollRoot = null; 
+  touchScrollTop = 0; 
+  clearTouchTracking(); 
+ } 
+ function markTouchMove(event) { 
+  let currentScrollTop = 0; 
+  const point = touchStart ? getTouchPoint(event) : null; 
+  if (point) { 
+   if (Math.floor(Math.abs(point.x - touchStart.x) / 11)) { touchMoved = true; } 
+   if (Math.floor(Math.abs(point.y - touchStart.y) / 11)) { touchMoved = true; } 
   } 
-  element.addEventListener('click', run); 
-  element.style.touchAction = 'auto'; 
-  element.style.webkitTapHighlightColor = 'transparent'; 
-  return element; 
+  if (!touchScrollRoot) { return; } 
+  currentScrollTop = typeof touchScrollRoot.scrollTop === 'number' ? touchScrollRoot.scrollTop : 0; 
+  if (Math.floor(Math.abs(currentScrollTop - touchScrollTop) / 4)) { touchMoved = true; } 
  } 
+ function markTouchEndCheck() { 
+  let currentScrollTop = 0; 
+  if (!touchScrollRoot) { return; } 
+  currentScrollTop = typeof touchScrollRoot.scrollTop === 'number' ? touchScrollRoot.scrollTop : 0; 
+  if (Math.floor(Math.abs(currentScrollTop - touchScrollTop) / 4)) { touchMoved = true; } 
+ } 
+ function markTouchStart(event) { 
+  touchStart = getTouchPoint(event); 
+  touchMoved = false; 
+  touchScrollRoot = findScrollRoot(element); 
+  touchScrollTop = typeof touchScrollRoot.scrollTop === 'number' ? touchScrollRoot.scrollTop : 0; 
+  if (typeof window !== 'undefined') { 
+   window.addEventListener('touchmove', markTouchMove, { passive: true, capture: true }); 
+   window.addEventListener('touchend', markTouchEndCheck, { passive: true, capture: true }); 
+   window.addEventListener('touchcancel', resetTouch, { passive: true, capture: true }); 
+  } 
+ } 
+ function run(event) { 
+  const now = Date.now(); 
+  if (event) { 
+   if (event.type === 'pointerup') { 
+    if (event.pointerType === 'mouse') { if (event.button !== 0) { return; } } 
+    else if (event.pointerType === 'touch') { return; } 
+    else if (event.pointerType) { lastPressAt = now; } 
+   } 
+   if (event.type === 'touchend') { 
+    markTouchEndCheck(); 
+    if (touchMoved) { resetTouch(); return; } 
+    lastPressAt = now; 
+    resetTouch(); 
+    if (event.cancelable) { event.preventDefault(); } 
+   } 
+   if (event.type === 'touchcancel') { resetTouch(); return; } 
+   if (event.type === 'click') { if (lastPressAt) { if (!Math.floor((now - lastPressAt) / 700)) { return; } } } 
+  } 
+  handler(event); 
+ } 
+ element.addEventListener('touchstart', markTouchStart, { passive: true }); 
+ element.addEventListener('touchmove', markTouchMove, { passive: true }); 
+ element.addEventListener('touchcancel', run, { passive: true }); 
+ element.addEventListener('touchend', run, { passive: false }); 
+ if (typeof window !== 'undefined') { if ('PointerEvent' in window) { element.addEventListener('pointerup', run); } } 
+ element.addEventListener('click', run); 
+ element.style.touchAction = 'auto'; 
+ element.style.webkitTapHighlightColor = 'transparent'; 
+ return element; 
+} 
 function primeNativeTapButton(element) { 
-  if (!element) { return element; } 
-  if (element.__dclTapPrimed) { return element; } 
-  let lastTapAt = 0; 
-  let touchStart = null; 
-  let touchMoved = false;
-  const resetTouch = function () { touchStart = null; touchMoved = false; }; 
-  const markTouchStart = function (event) { touchStart = getTouchPoint(event); touchMoved = false; }; 
-  const markTouchMove = function (event) { 
-   if (!touchStart) { return; } 
-   const point = getTouchPoint(event); 
-   if (!point) { return; } 
-   const deltaX = Math.abs(point.x - touchStart.x); 
-   const deltaY = Math.abs(point.y - touchStart.y); 
-   if (deltaX > 12) { touchMoved = true; return; } 
-   if (deltaY > 12) { touchMoved = true; } 
-  }; 
-  element.__dclTapPrimed = true; 
-  element.style.touchAction = 'auto'; 
-  element.style.webkitTapHighlightColor = 'transparent'; 
-  element.addEventListener('touchstart', markTouchStart, { passive: true }); 
-  element.addEventListener('touchmove', markTouchMove, { passive: true }); 
-  element.addEventListener('touchcancel', resetTouch, { passive: true }); 
-  element.addEventListener('touchend', function (event) { 
-   const now = Date.now(); 
-   if (touchMoved) { resetTouch(); return; } 
-   resetTouch(); 
-   if (now - lastTapAt < 500) { return; } 
-   lastTapAt = now; 
-   if (element.disabled) { return; } 
-   if (event.cancelable) { event.preventDefault(); } 
-   event.stopPropagation(); 
-   if (event.stopImmediatePropagation) { event.stopImmediatePropagation(); } 
-   if (typeof element.click === 'function') { element.click(); } 
-  }, { passive: false }); 
-  return element; 
+ if (!element) { return element; } 
+ if (element.__dclTapPrimed) { return element; } 
+ let lastTapAt = 0; 
+ let touchStart = null; 
+ let touchMoved = false; 
+ let touchScrollRoot = null; 
+ let touchScrollTop = 0; 
+ function findScrollRoot(node) { 
+  let root = null; 
+  if (!node) { return document.body; } 
+  if (!node.closest) { return document.body; } 
+  root = node.closest('.dcl-body, .dcl-results-list, .dcl-entry-list, .dcl-home-scroll'); 
+  if (root) { return root; } 
+  return document.body; 
  } 
+ function clearTouchTracking() { 
+  if (typeof window === 'undefined') { return; } 
+  window.removeEventListener('touchmove', markTouchMove, true); 
+  window.removeEventListener('touchend', markTouchEndCheck, true); 
+  window.removeEventListener('touchcancel', resetTouch, true); 
+ } 
+ function resetTouch() { 
+  touchStart = null; 
+  touchMoved = false; 
+  touchScrollRoot = null; 
+  touchScrollTop = 0; 
+  clearTouchTracking(); 
+ } 
+ function markTouchMove(event) { 
+  let currentScrollTop = 0; 
+  const point = touchStart ? getTouchPoint(event) : null; 
+  if (point) { 
+   if (Math.floor(Math.abs(point.x - touchStart.x) / 11)) { touchMoved = true; } 
+   if (Math.floor(Math.abs(point.y - touchStart.y) / 11)) { touchMoved = true; } 
+  } 
+  if (!touchScrollRoot) { return; } 
+  currentScrollTop = typeof touchScrollRoot.scrollTop === 'number' ? touchScrollRoot.scrollTop : 0; 
+  if (Math.floor(Math.abs(currentScrollTop - touchScrollTop) / 4)) { touchMoved = true; } 
+ } 
+ function markTouchEndCheck() { 
+  let currentScrollTop = 0; 
+  if (!touchScrollRoot) { return; } 
+  currentScrollTop = typeof touchScrollRoot.scrollTop === 'number' ? touchScrollRoot.scrollTop : 0; 
+  if (Math.floor(Math.abs(currentScrollTop - touchScrollTop) / 4)) { touchMoved = true; } 
+ } 
+ function markTouchStart(event) { 
+  touchStart = getTouchPoint(event); 
+  touchMoved = false; 
+  touchScrollRoot = findScrollRoot(element); 
+  touchScrollTop = typeof touchScrollRoot.scrollTop === 'number' ? touchScrollRoot.scrollTop : 0; 
+  if (typeof window !== 'undefined') { 
+   window.addEventListener('touchmove', markTouchMove, { passive: true, capture: true }); 
+   window.addEventListener('touchend', markTouchEndCheck, { passive: true, capture: true }); 
+   window.addEventListener('touchcancel', resetTouch, { passive: true, capture: true }); 
+  } 
+ } 
+ element.__dclTapPrimed = true; 
+ element.style.touchAction = 'auto'; 
+ element.style.webkitTapHighlightColor = 'transparent'; 
+ element.addEventListener('touchstart', markTouchStart, { passive: true }); 
+ element.addEventListener('touchmove', markTouchMove, { passive: true }); 
+ element.addEventListener('touchcancel', resetTouch, { passive: true }); 
+ element.addEventListener('touchend', function (event) { 
+  const now = Date.now(); 
+  markTouchEndCheck(); 
+  if (touchMoved) { resetTouch(); return; } 
+  resetTouch(); 
+  if (lastTapAt) { if (!Math.floor((now - lastTapAt) / 500)) { return; } } 
+  lastTapAt = now; 
+  if (element.disabled) { return; } 
+  if (event.cancelable) { event.preventDefault(); } 
+  event.stopPropagation();
+  if (event.stopImmediatePropagation) { event.stopImmediatePropagation(); } 
+  if (typeof element.click === 'function') { element.click(); } 
+ }, { passive: false }); 
+ return element; 
+} 
+
 function lockDocumentScroll() {
  if (typeof document === "undefined") { return; }
  const body = document.body;
@@ -504,7 +578,7 @@ function openHomeEditor(listId) { loadStore(); showPanel(); openListEditor(listI
  const selected = state.lists.find(function (list) { return list.id === listId; });
  let nextDeletedBuiltins = state.deletedBuiltins.slice();
  if (!selected) { return; }
- if (!window.confirm("Удалить список \"" + selected.name + "\"?1")) { return; }
+ if (!window.confirm("Удалить список \"" + selected.name + "\"?2")) { return; }
  if (selected.source.indexOf("builtin-") === 0) { nextDeletedBuiltins = uniqueValues(nextDeletedBuiltins.concat(selected.source)); }
  if (state.editorListId === selected.id) { state.editorListId = ""; state.entryMode = ""; }
  state.notice = "Список удален.";
@@ -721,147 +795,149 @@ if (input && !isQuizMobileViewport()) { input.focus(); if (typeof input.select =
  wrap.appendChild(actions);
  return wrap;
  }
- function renderSelectedArea(main, selected) {
- let card;
- let head;
- let form;
- let row;
- let input;
- let textarea;
- let listWrap;
- let searchWrap;
- let clearButton;
- let emptyState;
- let searchInput;
- const mode = state.editingEntryId ? "manual" : state.entryMode;
- if (!selected) {
- card = makeCard();
- card.appendChild(node("div", "dcl-empty", "Список не найден. Вернись назад и выбери другой."));
- row = node("div", "dcl-row");
- row.appendChild(makeButton("dcl-btn dcl-btn-muted", "На главную", closePanel));
- card.appendChild(row);
+ 
+function renderSelectedArea(main, selected) { 
+ let card; 
+ let head; 
+ let form; 
+ let row; 
+ let input; 
+ let textarea; 
+ let listWrap; 
+ let searchWrap; 
+ let clearButton; 
+ let emptyState; 
+ let searchInput; 
+ const mode = state.editingEntryId ? 'manual' : state.entryMode; 
+ if (!selected) { 
+  card = makeCard(); 
+  card.appendChild(node('div', 'dcl-empty', 'Список не найден. Вернись назад и выбери другой.')); 
+  row = node('div', 'dcl-row'); 
+  row.appendChild(makeButton('dcl-btn dcl-btn-muted', 'На главную', closePanel)); 
+  card.appendChild(row); 
+  main.appendChild(card); 
+  return; 
+ } 
+ card = makeCard(); 
+ row = node('div', 'dcl-row'); 
+ row.appendChild(makeButton('dcl-btn dcl-btn-muted', 'На главную', closePanel)); 
+ card.appendChild(row); 
+ main.appendChild(card); 
+ card = makeCard(); 
+ head = makeSectionHead('Выбранный список', getListEmoji(selected) + ' ' + selected.name, selected.entries.length + ' слов'); 
+ head.appendChild(makeButton('dcl-btn dcl-btn-danger', 'Удалить список', deleteSelectedList)); 
+ card.appendChild(head); 
+ form = node('form', 'dcl-stack'); 
+ form.addEventListener('submit', function (event) { event.preventDefault(); renameSelectedList(); }); 
+ input = makeInput('dcl-rename-name', state.renameName, 'Название списка'); 
+ input.addEventListener('input', function (event) { state.renameName = event.target.value; }); 
+ form.appendChild(makeField('Название списка', input));
+ input = makeInput('dcl-rename-emoji', state.renameEmoji, DEFAULT_CUSTOM_EMOJI); 
+ input.addEventListener('input', function (event) { state.renameEmoji = event.target.value; }); 
+ form.appendChild(makeField('Emoji', input)); 
+ row = node('div', 'dcl-row'); 
+ row.appendChild(makeButton('dcl-btn dcl-btn-muted', 'Убрать emoji', function () { state.renameEmoji = ''; render(); })); 
+ form.appendChild(row); 
+ form.appendChild(node('div', 'dcl-help', 'Можно ввести свой emoji с клавиатуры телефона или выбрать ниже.')); 
+ form.appendChild(makeEmojiPicker()); 
+ row = node('div', 'dcl-row'); 
+ row.appendChild(makeButton('dcl-btn', 'Сохранить', null, 'submit')); 
+ form.appendChild(row); 
+ card.appendChild(form); 
+ main.appendChild(card); 
+ card = makeCard(); 
+ row = node('div', 'dcl-row'); 
+ row.appendChild(makeButton(mode === 'manual' ? 'dcl-btn' : 'dcl-btn dcl-btn-muted', 'Вручную', function () { 
+  state.entryMode = 'manual'; 
+  state.editingEntryId = ''; 
+  state.term = ''; 
+  state.translations = ''; 
+  state.bulk = ''; 
+  state.notice = ''; 
+  render(); 
+ })); 
+ row.appendChild(makeButton(mode === 'bulk' ? 'dcl-btn' : 'dcl-btn dcl-btn-muted', 'Вставка списком', function () { 
+  state.entryMode = 'bulk'; 
+  state.editingEntryId = ''; 
+  state.term = ''; 
+  state.translations = ''; 
+  state.notice = ''; 
+  render(); 
+ })); 
+ card.appendChild(row); 
  main.appendChild(card);
- return;
- }
- card = makeCard();
- row = node("div", "dcl-row");
- row.appendChild(makeButton("dcl-btn dcl-btn-muted", "На главную", closePanel));
- card.appendChild(row);
- main.appendChild(card);
- card = makeCard();
- head = makeSectionHead("Выбранный список", getListEmoji(selected) + " " + selected.name, selected.entries.length + " слов" + (isBuiltinList(selected) ? " • встроенный список" : ""));
- head.appendChild(makeButton("dcl-btn dcl-btn-danger", "Удалить список", deleteSelectedList));
- card.appendChild(head);
- form = node("form", "dcl-stack");
- form.addEventListener("submit", function (event) { event.preventDefault(); renameSelectedList(); });
- row = node("div", "dcl-row");
- input = makeInput("dcl-rename-name", state.renameName, "Название списка");
- input.addEventListener("input", function (event) { state.renameName = event.target.value; });
- row.appendChild(makeField("Название списка", input));
- input = makeInput("dcl-rename-emoji", state.renameEmoji, "Введи emoji или выбери ниже");
- input.maxLength = 32;
- input.setAttribute("inputmode", "text");
- input.setAttribute("autocomplete", "off");
- input.setAttribute("autocapitalize", "off");
- input.setAttribute("enterkeyhint", "done");
- input.spellcheck = false;
- input.addEventListener("input", function (event) { state.renameEmoji = event.target.value; });
- row.appendChild(makeField("Emoji", input));
- form.appendChild(row);
- row = node("div", "dcl-row");
- row.appendChild(makeButton("dcl-btn dcl-btn-muted", "Убрать emoji", function () {
- state.renameEmoji = "";
- render();
- window.setTimeout(function () {
- const emojiInput = document.getElementById("dcl-rename-emoji");
- if (emojiInput) { emojiInput.focus(); }
- }, 0);
- }));
- form.appendChild(row);
- form.appendChild(node("div", "dcl-help", "Можно ввести свой emoji с клавиатуры телефона или выбрать ниже."));
- form.appendChild(makeEmojiPicker());
- row = node("div", "dcl-row");
- row.appendChild(makeButton("dcl-btn", "Сохранить", null, "submit"));
- form.appendChild(row);
- card.appendChild(form);
- main.appendChild(card);
- card = makeCard();
- row = node("div", "dcl-row");
- row.appendChild(makeButton(mode === "manual" ? "dcl-btn" : "dcl-btn dcl-btn-muted", "Вручную", function () { state.entryMode = "manual"; state.editingEntryId = ""; state.term = ""; state.translations = ""; state.bulk = ""; state.notice = ""; render(); }));
- row.appendChild(makeButton(mode === "bulk" ? "dcl-btn" : "dcl-btn dcl-btn-muted", "Вставка списком", function () { state.entryMode = "bulk"; state.editingEntryId = ""; state.term = ""; state.translations = ""; state.notice = ""; render(); }));
- card.appendChild(row);
- main.appendChild(card);
- if (mode === "manual") {
- card = makeCard();
- card.id = "dcl-entry-editor-card";
- head = makeSectionHead("", state.editingEntryId ? "Редактирование слова" : "Слово и переводы", "Несколько переводов разделяй запятыми.");
- if (state.editingEntryId) { head.appendChild(makeButton("dcl-btn dcl-btn-muted", "Отмена", clearEntryEditor)); }
- card.appendChild(head);
- form = node("form", "dcl-stack");
- form.addEventListener("submit", function (event) { event.preventDefault(); saveEntry(); });
- row = node("div", "dcl-row");
- input = makeInput("dcl-entry-term", state.term, "apple");
- input.addEventListener("input", function (event) { state.term = event.target.value; });
- row.appendChild(makeField("Слово", input));
- input = makeInput("dcl-entry-translations", state.translations, "яблоко, яблочко");
- input.addEventListener("input", function (event) { state.translations = event.target.value; });
- row.appendChild(makeField("Переводы", input));
- form.appendChild(row);
- row = node("div", "dcl-row");
- row.appendChild(makeButton("dcl-btn", state.editingEntryId ? "Сохранить слово" : "Добавить слово", null, "submit"));
- form.appendChild(row);
- card.appendChild(form);
- main.appendChild(card);
- }
- if (mode === "bulk") {
- card = makeCard();
- card.appendChild(makeSectionHead("", "Вставка списком", "Вставь строки в формате слово - перевод, перевод."));
- form = node("form", "dcl-stack");
- form.addEventListener("submit", function (event) { event.preventDefault(); importBulk(); });
- textarea = node("textarea", "dcl-textarea");
- textarea.id = "dcl-bulk-text";
- textarea.rows = 7;
- textarea.value = state.bulk;
- textarea.placeholder = ["apple - яблоко", "orange - апельсин", "juice - сок, электричество"].join("\n");
- textarea.addEventListener("input", function (event) { state.bulk = event.target.value; });
- form.appendChild(textarea);
- row = node("div", "dcl-row");
- row.appendChild(makeButton("dcl-btn", "Импортировать список", null, "submit"));
- form.appendChild(row);
- card.appendChild(form);
- main.appendChild(card);
- }
- card = makeCard();
- card.appendChild(makeSectionHead("Слова в списке", String(selected.entries.length), ""));
- if (!selected.entries.length) {
- card.appendChild(node("div", "dcl-empty", "В этом списке пока нет слов."));
- main.appendChild(card);
- return;
- }
- searchWrap = node("div", "dcl-search");
- searchInput = makeInput("dcl-entry-search", state.entrySearch, "Найти слово или перевод");
- searchInput.addEventListener("input", function () {
- state.entrySearch = searchInput.value;
- updateEntryListFilter(listWrap, emptyState, clearButton);
- });
- searchWrap.appendChild(searchInput);
- clearButton = makeButton("dcl-search-clear", "×", function () {
- state.entrySearch = "";
- searchInput.value = "";
- updateEntryListFilter(listWrap, emptyState, clearButton);
- searchInput.focus();
- });
- searchWrap.appendChild(clearButton);
- card.appendChild(makeField("Поиск", searchWrap));
- listWrap = node("div", "dcl-entry-list");
- selected.entries.forEach(function (entry) { listWrap.appendChild(makeEntryCard(entry)); });
- emptyState = node("div", "dcl-empty", "Ничего не найдено.");
- emptyState.hidden = true;
- card.appendChild(listWrap);
- card.appendChild(emptyState);
- updateEntryListFilter(listWrap, emptyState, clearButton);
- main.appendChild(card);
- }
+ if (mode === 'manual') { 
+  card = makeCard(); 
+  card.id = 'dcl-entry-editor-card'; 
+  head = makeSectionHead('', state.editingEntryId ? 'Редактирование слова' : 'Слово и переводы', 'Несколько переводов разделяй запятыми.'); 
+  if (state.editingEntryId) { head.appendChild(makeButton('dcl-btn dcl-btn-muted', 'Отмена', clearEntryEditor)); } 
+  card.appendChild(head); 
+  form = node('form', 'dcl-stack'); 
+  form.addEventListener('submit', function (event) { event.preventDefault(); saveEntry(); }); 
+  row = node('div', 'dcl-row'); 
+  input = makeInput('dcl-entry-term', state.term, 'apple'); 
+  input.addEventListener('input', function (event) { state.term = event.target.value; }); 
+  row.appendChild(makeField('Слово', input)); 
+  input = makeInput('dcl-entry-translations', state.translations, 'яблоко, яблочко'); 
+  input.addEventListener('input', function (event) { state.translations = event.target.value; }); 
+  row.appendChild(makeField('Переводы', input)); 
+  form.appendChild(row); 
+  row = node('div', 'dcl-row'); 
+  row.appendChild(makeButton('dcl-btn', state.editingEntryId ? 'Сохранить слово' : 'Добавить слово', null, 'submit')); 
+  form.appendChild(row); 
+  card.appendChild(form); 
+  main.appendChild(card); 
+ } 
+ if (mode === 'bulk') { 
+  card = makeCard(); 
+  card.appendChild(makeSectionHead('', 'Вставка списком', 'Вставь строки в формате слово - перевод, перевод.')); 
+  form = node('form', 'dcl-stack'); 
+  textarea = node('textarea', 'dcl-textarea'); 
+  form.addEventListener('submit', function (event) { event.preventDefault(); importBulk(); });
+  textarea.id = 'dcl-bulk-text'; 
+  textarea.rows = 7; 
+  textarea.value = state.bulk; 
+  textarea.placeholder = ['apple - яблоко', 'orange - апельсин', 'juice - сок, электричество'].join('\n'); 
+  textarea.addEventListener('input', function (event) { state.bulk = event.target.value; }); 
+  form.appendChild(textarea); 
+  row = node('div', 'dcl-row'); 
+  row.appendChild(makeButton('dcl-btn', 'Импортировать список', null, 'submit')); 
+  form.appendChild(row); 
+  card.appendChild(form); 
+  main.appendChild(card); 
+ } 
+ card = makeCard(); 
+ card.appendChild(makeSectionHead('Слова в списке', String(selected.entries.length), '')); 
+ if (!selected.entries.length) { 
+  card.appendChild(node('div', 'dcl-empty', 'В этом списке пока нет слов.')); 
+  main.appendChild(card); 
+  return; 
+ } 
+ searchWrap = node('div', 'dcl-search'); 
+ searchInput = makeInput('dcl-entry-search', state.entrySearch, 'Найти слово или перевод'); 
+ searchInput.addEventListener('input', function () { 
+  state.entrySearch = searchInput.value; 
+  updateEntryListFilter(listWrap, emptyState, clearButton); 
+ }); 
+ searchWrap.appendChild(searchInput); 
+ clearButton = makeButton('dcl-search-clear', '×', function () {
+  state.entrySearch = ''; 
+  searchInput.value = ''; 
+  updateEntryListFilter(listWrap, emptyState, clearButton); 
+  searchInput.focus(); 
+ }); 
+ searchWrap.appendChild(clearButton); 
+ card.appendChild(makeField('Поиск', searchWrap)); 
+ listWrap = node('div', 'dcl-entry-list'); 
+ selected.entries.forEach(function (entry) { listWrap.appendChild(makeEntryCard(entry)); }); 
+ emptyState = node('div', 'dcl-empty', 'Ничего не найдено.'); 
+ emptyState.hidden = true; 
+ card.appendChild(listWrap); 
+ card.appendChild(emptyState); 
+ updateEntryListFilter(listWrap, emptyState, clearButton); 
+ main.appendChild(card); 
+} 
+
  function render() {
  const selected = getSelectedList();
  const overview = node("div", "dcl-main");
