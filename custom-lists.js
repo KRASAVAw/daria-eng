@@ -504,7 +504,7 @@ function openHomeEditor(listId) { loadStore(); showPanel(); openListEditor(listI
  const selected = state.lists.find(function (list) { return list.id === listId; });
  let nextDeletedBuiltins = state.deletedBuiltins.slice();
  if (!selected) { return; }
- if (!window.confirm("Удалить список \\\"" + selected.name + "\\\"?")) { return; }
+ if (!window.confirm("Удалить список \"" + selected.name + "\"?")) { return; }
  if (selected.source.indexOf("builtin-") === 0) { nextDeletedBuiltins = uniqueValues(nextDeletedBuiltins.concat(selected.source)); }
  if (state.editorListId === selected.id) { state.editorListId = ""; state.entryMode = ""; }
  state.notice = "Список удален.";
@@ -598,7 +598,7 @@ const input = document.getElementById('dcl-entry-term');
 if (card) {  
 if (typeof card.scrollIntoView === 'function') { card.scrollIntoView({ behavior: 'smooth', block: 'start' }); }  
 }  
-if (input) { input.focus(); if (typeof input.select === 'function') { input.select(); } }  
+if (input && !isQuizMobileViewport()) { input.focus(); if (typeof input.select === "function") { input.select(); } }
 }
  function clearEntryEditor() {
  state.editingEntryId = "";
@@ -642,6 +642,10 @@ if (input) { input.focus(); if (typeof input.select === 'function') { input.sele
  element.type = "text";
  element.value = value;
  element.placeholder = placeholder;
+ element.setAttribute("inputmode", "text");
+ element.setAttribute("autocomplete", "off");
+ element.setAttribute("autocapitalize", "off");
+ bindMobileInputFocus(element);
  return element;
  }
  function makeField(labelText, control) {
