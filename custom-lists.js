@@ -1582,7 +1582,7 @@ function createQuizTopBar() {
  const closeButton = node("button", "dcl-quiz-icon-btn", "←");
  const progress = node("div", "dcl-quiz-progress");
  closeButton.type = "button";
- closeButton.addEventListener("click", closeQuiz);
+ bindPress(closeButton, closeQuiz);
  progress.appendChild(node("div", "dcl-quiz-progress-main", String(quizState.index + 1) + " / " + String(quizState.entries.length)));
  progress.appendChild(node("div", "dcl-quiz-progress-label", "Прогресс"));
  top.appendChild(closeButton);
@@ -1744,7 +1744,7 @@ function renderQuiz() {
     topBar = node("div", "dcl-quiz-topbar");
     button = node("button", "dcl-quiz-icon-btn", "←");
     button.type = "button";
-    button.addEventListener("click", function () { quizState.mobileResultsOpen = false; renderQuiz(); });
+    bindPress(button, function () { quizState.mobileResultsOpen = false; renderQuiz(); });
     topBar.appendChild(button);
     stageCopy = node("div", "dcl-quiz-progress");
     stageCopy.appendChild(node("div", "dcl-results-mobile-title", "Все ответы"));
@@ -1839,6 +1839,13 @@ function renderQuiz() {
  input.autocorrect = "off";
  input.autocapitalize = "off";
  input.spellcheck = false;
+ input.readOnly = false;
+ input.setAttribute("inputmode", "text");
+ input.setAttribute("enterkeyhint", quizState.checked ? "next" : "done");
+ input.style.pointerEvents = "auto";
+ input.addEventListener("touchend", function () { if (!quizState.checked) { input.focus(); } }, { passive: true });
+ input.addEventListener("pointerup", function () { if (!quizState.checked) { input.focus(); } });
+ input.addEventListener("click", function () { if (!quizState.checked) { input.focus(); } });
  input.addEventListener("input", function () {
  quizState.input = input.value;
  quizState.inputs[quizState.index] = input.value;
