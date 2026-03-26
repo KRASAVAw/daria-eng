@@ -1638,7 +1638,7 @@ function createQuizFeedback(entry) {
  message.appendChild(node("div", "dcl-quiz-feedback-hint", "Нажми, чтобы показать правильный ответ"));
  reveal = node("button", "dcl-reveal-answer dcl-reveal-answer-blurred", "Правильный ответ: " + getQuizCorrectAnswer(entry));
  reveal.type = "button";
- reveal.addEventListener("click", function () {
+ bindPress(reveal, function () {
  reveal.classList.toggle("dcl-reveal-answer-blurred");
  reveal.classList.toggle("dcl-reveal-answer-open");
  });
@@ -1708,26 +1708,59 @@ function renderQuiz() {
   row.appendChild(makeButton(quizState.direction === "ru_en" ? "dcl-btn" : "dcl-btn dcl-btn-muted", "Русский → Английский", function () { quizState.direction = "ru_en"; renderQuiz(); }));  
   card.appendChild(row);  
   card.appendChild(node("div", "dcl-label", "Количество слов"));   
-  row = node("div", "dcl-range-wrap");   
-  range = node("input", "dcl-range");   
-  range.type = "range";  
-  range.min = "1";   
-  range.max = String(totalCount);   
-  range.value = String(quizState.count);   
-  rangeValue = node("div", "dcl-range-value", String(quizState.count));   
-  range.addEventListener("input", function () { quizState.count = clampQuizCount(totalCount, range.value); rangeValue.textContent = String(quizState.count); });   
-  row.appendChild(range);   
-  row.appendChild(rangeValue);   
-  card.appendChild(row);   
-  card.appendChild(node("div", "dcl-label", "Порядок слов"));   
+  row = node("div", "dcl-range-wrap dcl-range-wrap-interactive");
+  range = node("input", "dcl-range");
+  range.type = "range";
+  range.min = "1";
+  range.max = String(totalCount);
+  range.value = String(quizState.count);
+  rangeValue = makeInput("dcl-range-value-input", String(quizState.count), String(quizState.count));
+  rangeValue.className = "dcl-input dcl-range-value dcl-range-value-input";
+  rangeValue.type = "number";
+  rangeValue.min = "1";
+  rangeValue.max = String(totalCount);
+  rangeValue.inputMode = "numeric";
+  rangeValue.pattern = "[0-9]*";
+  rangeValue.setAttribute("enterkeyhint", "done");
+  rangeValue.addEventListener("focus", function () { if (typeof rangeValue.select === "function") { rangeValue.select(); } });
+  function syncQuizCountControls() {
+   const nextValue = String(clampQuizCount(totalCount, quizState.count));
+   quizState.count = Number(nextValue);
+   range.value = nextValue;
+   rangeValue.value = nextValue;
+  }
+  range.addEventListener("input", function () {
+   quizState.count = clampQuizCount(totalCount, range.value);
+   syncQuizCountControls();
+  });
+  rangeValue.addEventListener("input", function () {
+   const digits = String(rangeValue.value).replace(/[^0-9]/g, "");
+   if (!digits) { rangeValue.value = ""; return; }
+   quizState.count = clampQuizCount(totalCount, digits);
+   syncQuizCountControls();
+  });
+  rangeValue.addEventListener("blur", function () {
+   quizState.count = clampQuizCount(totalCount, rangeValue.value ? rangeValue.value : quizState.count);
+   syncQuizCountControls();
+  });
+  rangeValue.addEventListener("keydown", function (event) {
+   if (event.key !== "Enter") { return; }
+   event.preventDefault();
+   rangeValue.blur();
+  });
+  row.appendChild(range);
+  row.appendChild(rangeValue);
+  syncQuizCountControls();
+  card.appendChild(row);
+card.appendChild(node("div", "dcl-label", "Порядок слов"));   
   row = node("div", "dcl-segmented");   
   row.appendChild(makeButton(!quizState.shuffle ? "dcl-btn" : "dcl-btn dcl-btn-muted", "По порядку", function () { quizState.shuffle = false; renderQuiz(); }));   
   row.appendChild(makeButton(quizState.shuffle ? "dcl-btn" : "dcl-btn dcl-btn-muted", "Случайно", function () { quizState.shuffle = true; renderQuiz(); }));   
   card.appendChild(row);   
   card.appendChild(node("div", "dcl-help", "Всего доступно: " + String(totalCount)));   
   
-  row = node("div", "dcl-row");  
-  row.appendChild(makeButton("dcl-btn", "Начать тест", beginQuizTest));  
+  row = node("div", "dcl-row dcl-setup-start-row");
+  row.appendChild(makeButton("dcl-btn", "Начать тест", beginQuizTest));
   card.appendChild(row);  
   quizBody.appendChild(card);  
   return;  
@@ -1843,6 +1876,7 @@ function renderQuiz() {
  input.setAttribute("inputmode", "text");
  input.setAttribute("enterkeyhint", quizState.checked ? "next" : "done");
  input.style.pointerEvents = "auto";
+ input.addEventListener("touchstart", function () { if (!quizState.checked) { input.focus(); } }, { passive: true });
  input.addEventListener("touchend", function () { if (!quizState.checked) { input.focus(); } }, { passive: true });
  input.addEventListener("pointerup", function () { if (!quizState.checked) { input.focus(); } });
  input.addEventListener("click", function () { if (!quizState.checked) { input.focus(); } });
@@ -1873,7 +1907,11 @@ function renderQuiz() {
  } else {
   row.appendChild(node("div", "dcl-quiz-spacer"));
  }
-  button = makeButton("dcl-btn dcl-quiz-action-primary", quizState.checked ? "\u0414\u0430\u043b\u044c\u0448\u0435" : "\u041f\u0440\u043e\u0432\u0435\u0440\u0438\u0442\u044c", null, "submit");
+  button = makeButton("dcl-btn dcl-quiz-action-primary", quizState.checked ? "\u0414\u0430\u043b\u044c\u0448\u0435" : "\u041f\u0440\u043e\u0432\u0435\u0440\u0438\u0442\u044c", function (event) {
+   if (event) { event.preventDefault(); }
+   if (quizState.checked) { nextQuizStep(); return; }
+   submitQuizAnswer();
+  });
   button.id = "dcl-quiz-primary-action";
   row.appendChild(button);
  if (!quizState.checked) {
@@ -1936,7 +1974,7 @@ css.push(".dcl-trigger,.dcl-btn,.dcl-close{border:0;cursor:pointer;touch-action:
  css.push(".dcl-input,.dcl-textarea{width:100%;min-width:0;box-sizing:border-box;border:1px solid rgba(255,255,255,.12);border-radius:16px;background:rgba(255,255,255,.08);color:#fff;padding:14px 16px;outline:none}");
  css.push(".dcl-input::placeholder,.dcl-textarea::placeholder{color:#c89aa7}");
  css.push(".dcl-textarea{resize:vertical;min-height:140px}");
- css.push(".dcl-btn{display:inline-flex;align-items:center;justify-content:center;padding:12px 16px;border-radius:16px;background:#ff4b6e;color:#fff;font-weight:800}");
+ css.push(".dcl-btn{display:inline-flex;align-items:center;justify-content:center;padding:12px 16px;border-radius:16px;background:#ff4b6e;color:#fff;font-weight:800;position:relative;z-index:2;-webkit-tap-highlight-color:transparent;touch-action:manipulation}");
  css.push(".dcl-btn-muted{background:rgba(255,255,255,.1);color:#fff}");
  css.push(".dcl-btn-danger{background:#5e1828;color:#ffd9e0}");
  css.push(".dcl-banner{margin-bottom:16px;padding:12px 16px;border-radius:18px;background:rgba(255,255,255,.08);color:#fff}");
@@ -1966,8 +2004,9 @@ css.push(".dcl-trigger,.dcl-btn,.dcl-close{border:0;cursor:pointer;touch-action:
  css.push(".dcl-range-wrap{display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:16px;background:rgba(255,255,255,.08)}");
  css.push(".dcl-range{flex:1;accent-color:#ff4b6e}");
  css.push(".dcl-range-value{min-width:44px;color:#fff;font-size:22px;font-weight:800;text-align:right}");
+ css.push(".dcl-range-value-input{min-width:72px;max-width:72px;padding:10px 8px;border-radius:14px;text-align:center;font-size:22px;font-weight:800;background:rgba(255,255,255,.06);cursor:text}");
  css.push(".dcl-help{color:#efbcc8;font-size:13px;line-height:1.4}");
- css.push(".dcl-reveal-answer{margin-top:10px;width:100%;padding:12px 16px;border:0;border-radius:16px;background:rgba(255,255,255,.08);color:#fff;text-align:left;font:inherit;cursor:pointer;transition:filter .2s ease,opacity .2s ease}");
+ css.push(".dcl-reveal-answer{margin-top:10px;width:100%;padding:12px 16px;border:0;border-radius:16px;background:rgba(255,255,255,.08);color:#fff;text-align:left;font:inherit;cursor:pointer;transition:filter .2s ease,opacity .2s ease;touch-action:manipulation;position:relative;z-index:3;-webkit-tap-highlight-color:transparent}");
  css.push(".dcl-reveal-answer-blurred{filter:blur(7px);opacity:.85}");
  css.push(".dcl-reveal-answer-open{filter:none;opacity:1}");
  css.push(".dcl-home-scroll{min-height:0!important;height:auto!important;max-height:none!important;overflow:visible!important;overflow-y:visible!important;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}");
@@ -1984,8 +2023,8 @@ css.push(".dcl-trigger,.dcl-btn,.dcl-close{border:0;cursor:pointer;touch-action:
  css.push(".dcl-body::-webkit-scrollbar-thumb:hover{background:linear-gradient(180deg,rgba(255,120,140,.95),rgba(255,85,118,.7))}");
   css.push(".dcl-quiz-body{display:flex;flex:1 1 auto;min-height:0;padding:18px 22px 22px;overflow:hidden}");
   css.push(".dcl-quiz-screen{display:flex;flex-direction:column;gap:14px;flex:1 1 auto;min-height:0;height:100%}");
- css.push(".dcl-quiz-topbar{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;color:#fff}");
- css.push(".dcl-quiz-icon-btn{width:44px;height:44px;border:0;border-radius:16px;background:rgba(255,255,255,.08);color:#fff;font:inherit;font-size:28px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;flex:0 0 auto}");
+ css.push(".dcl-quiz-topbar{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;color:#fff;position:relative;z-index:4}");
+ css.push(".dcl-quiz-icon-btn{width:44px;height:44px;border:0;border-radius:16px;background:rgba(255,255,255,.08);color:#fff;font:inherit;font-size:28px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;flex:0 0 auto;position:relative;z-index:4;touch-action:manipulation;-webkit-tap-highlight-color:transparent}");
  css.push(".dcl-quiz-progress{flex:1;text-align:center}");
  css.push(".dcl-quiz-progress-main{color:#fff;font-size:40px;font-weight:900;line-height:1}");
  css.push(".dcl-quiz-progress-label{margin-top:4px;color:#caaeb6;font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}");
@@ -2004,8 +2043,8 @@ css.push(".dcl-trigger,.dcl-btn,.dcl-close{border:0;cursor:pointer;touch-action:
  css.push(".dcl-quiz-stage-copy{flex:1;min-width:0;padding-top:10px}");
  css.push(".dcl-quiz-stage-hint{color:#c9afb7;font-size:15px;font-weight:700;line-height:1.45}");
  css.push(".dcl-quiz-stage-word{margin-top:8px;color:#fff;font-size:clamp(36px,5vw,58px);font-weight:900;line-height:1.05;word-break:break-word}");
- css.push(".dcl-quiz-form{margin-top:auto;display:flex;flex-direction:column;gap:16px}");
- css.push(".dcl-quiz-answer-input{padding:18px 20px;border-radius:20px;font-size:24px;font-weight:700;background:rgba(255,255,255,.08)}");
+ css.push(".dcl-quiz-form{margin-top:auto;display:flex;flex-direction:column;gap:16px;position:relative;z-index:3}");
+ css.push(".dcl-quiz-answer-input{padding:18px 20px;border-radius:20px;font-size:24px;font-weight:700;background:rgba(255,255,255,.08);position:relative;z-index:4;pointer-events:auto;touch-action:manipulation;-webkit-user-select:text;user-select:text}");
  css.push(".dcl-quiz-feedback{padding:14px 16px;border-radius:18px}");
  css.push(".dcl-quiz-feedback-good{background:rgba(54,179,126,.18);color:#dfffea}");
  css.push(".dcl-quiz-feedback-bad{background:rgba(255,107,129,.16);color:#ffe1e7}");
@@ -2063,6 +2102,7 @@ css.push(".dcl-builtin-action-secondary{flex:0 0 60px!important;min-width:60px!i
 css.push(".dcl-builtin-feedback{width:100%!important;margin-top:0!important}");
 css.push(".dcl-builtin-feedback .dcl-reveal-answer{margin-top:14px!important}");
 css.push("@media (max-width: 760px){.dcl-overlay{padding:0;align-items:stretch;justify-content:stretch}.dcl-quiz-overlay{padding:0;align-items:stretch;justify-content:stretch}.dcl-panel{width:100%;height:100%;min-height:100vh;min-height:100dvh;max-height:none;border-radius:0;border:0}.dcl-quiz-overlay .dcl-panel{width:100%;height:100%;min-height:100vh;min-height:100dvh;max-height:none;border-radius:0;border:0}.dcl-head{padding:calc(16px + env(safe-area-inset-top)) 16px 16px}.dcl-body{flex:1;min-height:0;padding:16px 16px calc(96px + env(safe-area-inset-bottom));overflow-y:auto}.dcl-main{padding-bottom:12px}.dcl-row{gap:14px}.dcl-entry-list{padding-right:0}.dcl-entry{padding:14px}.dcl-fab{right:12px;bottom:max(12px,env(safe-area-inset-bottom))}.dcl-entry-actions,.dcl-row .dcl-btn,.dcl-row >.dcl-field{width:100%}.dcl-quiz-body{padding:12px 14px calc(16px + env(safe-area-inset-bottom));overflow:hidden}.dcl-quiz-stage-card{flex:1 1 auto;min-height:0;padding:18px 16px}.dcl-quiz-step-number{font-size:72px}.dcl-quiz-stage-hint{font-size:14px}.dcl-quiz-stage-word{font-size:clamp(28px,10vw,46px)}.dcl-quiz-answer-input{font-size:18px;padding:16px 18px}.dcl-quiz-jump-list{gap:6px;padding-bottom:0;min-width:0;width:100%}.dcl-quiz-jump-arrow{min-width:0;height:40px;padding:0 4px;font-size:18px}.dcl-quiz-jump-btn{min-width:0;height:40px;padding:0 4px;font-size:14px}.dcl-quiz-jump-btn-disabled{opacity:.45}.dcl-quiz-finish-top{width:auto;min-height:44px}.dcl-quiz-action-primary{min-height:56px}.dcl-quiz-action-secondary{flex:0 0 56px;min-width:56px;min-height:56px;font-size:24px}.dcl-results-actions .dcl-btn{width:100%;min-height:56px}.dcl-results-mobile-open{display:flex}.dcl-results-mobile-open .dcl-btn{width:100%;min-height:52px}.dcl-results-card{padding:22px 18px}.dcl-results-card-title{font-size:24px}.dcl-results-stats{gap:10px}.dcl-results-stat-value{font-size:34px}.dcl-results-stat-score .dcl-results-stat-value{font-size:52px}.dcl-results-stat-score .dcl-results-stat-value span{font-size:26px}.dcl-results-copy{font-size:16px}.dcl-results-list{max-height:none}.dcl-results-item{padding:14px}.dcl-results-item-head{flex-direction:column;gap:6px}.dcl-results-item-prompt{font-size:18px}.dcl-results-item-answer{text-align:left;font-size:16px}.dcl-results-item-user{font-size:16px}}");
+ css.push("@media (max-width: 760px){.dcl-quiz-overlay .dcl-body{padding-bottom:calc(132px + env(safe-area-inset-bottom))}.dcl-quiz-overlay .dcl-range-wrap{gap:10px;padding:12px 14px}.dcl-range-value-input{min-width:64px;max-width:64px;font-size:18px;padding:10px 6px}.dcl-setup-start-row{position:sticky;bottom:calc(8px + env(safe-area-inset-bottom));z-index:5;padding-top:8px;padding-bottom:4px;background:linear-gradient(180deg,rgba(41,12,18,0),rgba(41,12,18,.96))}.dcl-setup-start-row .dcl-btn{min-height:56px}.dcl-quiz-action-primary,.dcl-quiz-action-secondary,.dcl-reveal-answer{touch-action:manipulation}}")
  style.textContent = css.join("");
  document.head.appendChild(style);
  overlay = node("div", "dcl-overlay");
