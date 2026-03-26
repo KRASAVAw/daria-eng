@@ -602,7 +602,7 @@ function openHomeEditor(listId) { loadStore(); showPanel(); openListEditor(listI
  const selected = state.lists.find(function (list) { return list.id === listId; });
  let nextDeletedBuiltins = state.deletedBuiltins.slice();
  if (!selected) { return; }
-if (!window.confirm("Удалить список \"" + selected.name + "\"?1")) { return; }
+if (!window.confirm("Удалить список \"" + selected.name + "\"?2")) { return; }
  if (selected.source.indexOf("builtin-") === 0) { nextDeletedBuiltins = uniqueValues(nextDeletedBuiltins.concat(selected.source)); }
  if (state.editorListId === selected.id) { state.editorListId = ""; state.entryMode = ""; }
  state.notice = "Список удален.";
@@ -2525,51 +2525,69 @@ document.addEventListener('keydown', function (event) { if (event.key === 'Escap
  ensureTriggerPlacement();
  }
  function refreshCloudState() {
- const previousSelectedId = state.selectedId;
- const previousEditorListId = state.editorListId;
- const previousEditingEntryId = state.editingEntryId;
- const previousEntryMode = state.entryMode;
- const previousTerm = state.term;
- const previousTranslations = state.translations;
- const previousBulk = state.bulk;
- const activeElement = document.activeElement;
- const activeId = activeElement && activeElement.id ? activeElement.id : "";
- const previousScrollTop = body ? body.scrollTop : 0;
- loadStore();
- if (previousSelectedId) {
-  if (state.lists.some(function (list) { return list.id === previousSelectedId; })) { state.selectedId = previousSelectedId; }
- }
- if (previousEditorListId) {
-  const sameList = state.lists.find(function (list) { return list.id === previousEditorListId; });
-  if (sameList) {
-   state.editorListId = previousEditorListId;
-   if (previousEditingEntryId) {
-    if (sameList.entries.some(function (entry) { return entry.id === previousEditingEntryId; })) {
-     state.editingEntryId = previousEditingEntryId;
-     state.entryMode = "manual";
-     state.term = previousTerm;
-     state.translations = previousTranslations;
+  const previousSelectedId = state.selectedId;
+  const previousEditorListId = state.editorListId;
+  const previousEditingEntryId = state.editingEntryId;
+  const previousEntryMode = state.entryMode;
+  const termInput = document.getElementById("dcl-entry-term");
+  const translationsInput = document.getElementById("dcl-entry-translations");
+  const bulkInput = document.getElementById("dcl-bulk-text");
+  const renameNameInput = document.getElementById("dcl-rename-name");
+  const renameEmojiInput = document.getElementById("dcl-rename-emoji");
+  const entrySearchInput = document.getElementById("dcl-entry-search");
+  const previousTerm = termInput ? termInput.value : state.term;
+  const previousTranslations = translationsInput ? translationsInput.value : state.translations;
+  const previousBulk = bulkInput ? bulkInput.value : state.bulk;
+  const previousRenameName = renameNameInput ? renameNameInput.value : state.renameName;
+  const previousRenameEmoji = renameEmojiInput ? renameEmojiInput.value : state.renameEmoji;
+  const previousEntrySearch = entrySearchInput ? entrySearchInput.value : state.entrySearch;
+  const activeElement = document.activeElement;
+  let activeId = "";
+  if (activeElement) { if (activeElement.id) { activeId = activeElement.id; } }
+  const previousScrollTop = body ? body.scrollTop : 0;
+  loadStore();
+  if (previousSelectedId) {
+   if (state.lists.some(function (list) { return list.id === previousSelectedId; })) { state.selectedId = previousSelectedId; }
+  }
+  if (previousEditorListId) {
+   const sameList = state.lists.find(function (list) { return list.id === previousEditorListId; });
+   if (sameList) {
+    state.editorListId = previousEditorListId;
+    state.renameName = previousRenameName;
+    state.renameEmoji = previousRenameEmoji;
+    state.entrySearch = previousEntrySearch;
+    if (previousEditingEntryId) {
+     if (sameList.entries.some(function (entry) { return entry.id === previousEditingEntryId; })) {
+      state.editingEntryId = previousEditingEntryId;
+      state.entryMode = "manual";
+      state.term = previousTerm;
+      state.translations = previousTranslations;
+     }
+    }
+    if (!state.editingEntryId) {
+     if (previousEntryMode === "manual") {
+      state.entryMode = "manual";
+      state.term = previousTerm;
+      state.translations = previousTranslations;
+      state.bulk = "";
+     } else if (previousEntryMode) {
+      state.entryMode = previousEntryMode;
+      state.bulk = previousBulk;
+     }
     }
    }
-   if (!state.editingEntryId && previousEntryMode) {
-    state.entryMode = previousEntryMode;
-    state.bulk = previousBulk;
+  }
+  render();
+  if (previousEditorListId) {
+   if (body) { body.scrollTop = previousScrollTop; }
+   if (activeId) {
+    const nextActive = document.getElementById(activeId);
+    if (nextActive) { if (typeof nextActive.focus === "function") { try { nextActive.focus({ preventScroll: true }); } catch (error) { try { nextActive.focus(); } catch (innerError) {} } } }
    }
   }
+  ensureTriggerPlacement();
+  normalizeBuiltinTestUi();
  }
- render();
- if (previousEditorListId && body) {
-  body.scrollTop = previousScrollTop;
-  if (activeId) {
-   const nextActive = document.getElementById(activeId);
-   if (nextActive && typeof nextActive.focus === "function") {
-    try { nextActive.focus({ preventScroll: true }); } catch (error) { try { nextActive.focus(); } catch (innerError) {} }
-   }
-  }
- }
- ensureTriggerPlacement();
- normalizeBuiltinTestUi();
-}
 function startInit() {
  loadStore();
  installUi();
