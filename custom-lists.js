@@ -98,7 +98,7 @@
    } 
   } 
   element.addEventListener('click', run); 
-  element.style.touchAction = 'manipulation'; 
+  element.style.touchAction = 'auto'; 
   element.style.webkitTapHighlightColor = 'transparent'; 
   return element; 
  } 
@@ -120,7 +120,7 @@ function primeNativeTapButton(element) {
    if (deltaY > 12) { touchMoved = true; } 
   }; 
   element.__dclTapPrimed = true; 
-  element.style.touchAction = 'manipulation'; 
+  element.style.touchAction = 'auto'; 
   element.style.webkitTapHighlightColor = 'transparent'; 
   element.addEventListener('touchstart', markTouchStart, { passive: true }); 
   element.addEventListener('touchmove', markTouchMove, { passive: true }); 
@@ -151,7 +151,10 @@ function primeNativeTapButton(element) {
    if (document.activeElement !== element) { element.focus(); }
    if (typeof element.select === 'function') { try { element.select(); } catch (error) {} }
   };
-  const focusLater = function () {
+  const focusLater = function (event) {
+   if (event) {
+    if (event.cancelable) { event.preventDefault(); }
+   }
    if (typeof window !== 'undefined') { window.setTimeout(focusNow, 0); return; }
    focusNow();
   };
@@ -163,9 +166,11 @@ function primeNativeTapButton(element) {
   }
   element.addEventListener('mousedown', focusNow);
   element.addEventListener('click', focusLater);
-  element.style.touchAction = 'manipulation';
+  element.style.touchAction = 'auto';
   element.style.webkitUserSelect = 'text';
   element.style.userSelect = 'text';
+  element.style.webkitTouchCallout = 'default';
+  element.style.cursor = 'text';
   return element;
  }
  function clear(element) {
@@ -1842,7 +1847,9 @@ rangeValue.autocomplete = 'off';
   rangeValue.style.pointerEvents = 'auto';
   rangeValue.style.position = 'relative';
   rangeValue.style.zIndex = '4';
-  rangeValue.style.touchAction = 'manipulation';
+  rangeValue.style.touchAction = 'auto';
+  rangeValue.style.webkitTouchCallout = 'default';
+  rangeValue.style.cursor = 'text';
   rangeValue.style.webkitUserSelect = 'text';
   rangeValue.style.userSelect = 'text';
   function focusRangeValue(event) {
@@ -2006,6 +2013,11 @@ card.appendChild(node("div", "dcl-label", "Порядок слов"));
  input.setAttribute("inputmode", "text");
  input.setAttribute("enterkeyhint", quizState.checked ? "next" : "done");
  input.style.pointerEvents = "auto";
+  input.style.touchAction = "auto";
+  input.style.webkitUserSelect = "text";
+  input.style.userSelect = "text";
+  input.style.webkitTouchCallout = "default";
+  input.style.cursor = "text";
   bindMobileInputFocus(input, function () { return !quizState.checked; });
  input.addEventListener("input", function () {
  quizState.input = input.value;
@@ -2131,7 +2143,7 @@ css.push(".dcl-trigger,.dcl-btn,.dcl-close{border:0;cursor:pointer;touch-action:
  css.push(".dcl-range-wrap{display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:16px;background:rgba(255,255,255,.08)}");
  css.push(".dcl-range{flex:1;accent-color:#ff4b6e}");
  css.push(".dcl-range-value{min-width:44px;color:#fff;font-size:22px;font-weight:800;text-align:right}");
- css.push(".dcl-range-value-input{min-width:72px;max-width:72px;padding:10px 8px;border-radius:14px;text-align:center;font-size:22px;font-weight:800;background:rgba(255,255,255,.06);cursor:text}");
+ css.push(".dcl-range-value-input{min-width:72px;max-width:72px;padding:10px 8px;border-radius:14px;text-align:center;font-size:22px;font-weight:800;background:rgba(255,255,255,.06);cursor:text;touch-action:auto;-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}");
  css.push(".dcl-help{color:#efbcc8;font-size:13px;line-height:1.4}");
  css.push(".dcl-reveal-answer{margin-top:10px;width:100%;padding:12px 16px;border:0;border-radius:16px;background:rgba(255,255,255,.08);color:#fff;text-align:left;font:inherit;cursor:pointer;transition:filter .2s ease,opacity .2s ease;touch-action:manipulation;position:relative;z-index:3;-webkit-tap-highlight-color:transparent}");
  css.push(".dcl-reveal-answer-blurred{filter:blur(7px);opacity:.85}");
@@ -2171,7 +2183,7 @@ css.push(".dcl-trigger,.dcl-btn,.dcl-close{border:0;cursor:pointer;touch-action:
  css.push(".dcl-quiz-stage-hint{color:#c9afb7;font-size:15px;font-weight:700;line-height:1.45}");
  css.push(".dcl-quiz-stage-word{margin-top:8px;color:#fff;font-size:clamp(36px,5vw,58px);font-weight:900;line-height:1.05;word-break:break-word}");
  css.push(".dcl-quiz-form{margin-top:auto;display:flex;flex-direction:column;gap:16px;position:relative;z-index:3}");
- css.push(".dcl-quiz-answer-input{padding:18px 20px;border-radius:20px;font-size:24px;font-weight:700;background:rgba(255,255,255,.08);position:relative;z-index:4;pointer-events:auto;touch-action:manipulation;-webkit-user-select:text;user-select:text}");
+ css.push(".dcl-quiz-answer-input{padding:18px 20px;border-radius:20px;font-size:24px;font-weight:700;background:rgba(255,255,255,.08);position:relative;z-index:4;pointer-events:auto;touch-action:auto;-webkit-user-select:text;user-select:text;-webkit-touch-callout:default;cursor:text}");
  css.push(".dcl-quiz-feedback{padding:14px 16px;border-radius:18px}");
  css.push(".dcl-quiz-feedback-good{background:rgba(54,179,126,.18);color:#dfffea}");
  css.push(".dcl-quiz-feedback-bad{background:rgba(255,107,129,.16);color:#ffe1e7}");
