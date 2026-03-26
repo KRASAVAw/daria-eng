@@ -504,7 +504,7 @@ function openHomeEditor(listId) { loadStore(); showPanel(); openListEditor(listI
  const selected = state.lists.find(function (list) { return list.id === listId; });
  let nextDeletedBuiltins = state.deletedBuiltins.slice();
  if (!selected) { return; }
- if (!window.confirm("??????? ?????? \"" + selected.name + "\"?")) { return; }
+ if (!window.confirm("Удалить список \\\"" + selected.name + "\\\"?")) { return; }
  if (selected.source.indexOf("builtin-") === 0) { nextDeletedBuiltins = uniqueValues(nextDeletedBuiltins.concat(selected.source)); }
  if (state.editorListId === selected.id) { state.editorListId = ""; state.entryMode = ""; }
  state.notice = "Список удален.";
@@ -2379,7 +2379,37 @@ document.addEventListener('keydown', function (event) { if (event.key === 'Escap
  ensureTriggerPlacement();
  }
  function refreshCloudState() {
+ const previousSelectedId = state.selectedId;
+ const previousEditorListId = state.editorListId;
+ const previousEditingEntryId = state.editingEntryId;
+ const previousEntryMode = state.entryMode;
+ const previousTerm = state.term;
+ const previousTranslations = state.translations;
+ const previousBulk = state.bulk;
  loadStore();
+ if (previousSelectedId) {
+  if (state.lists.some(function (list) { return list.id === previousSelectedId; })) { state.selectedId = previousSelectedId; }
+ }
+ if (previousEditorListId) {
+  const sameList = state.lists.find(function (list) { return list.id === previousEditorListId; });
+  if (sameList) {
+   state.editorListId = previousEditorListId;
+   if (previousEditingEntryId) {
+    if (sameList.entries.some(function (entry) { return entry.id === previousEditingEntryId; })) {
+     state.editingEntryId = previousEditingEntryId;
+     state.entryMode = "manual";
+     state.term = previousTerm;
+     state.translations = previousTranslations;
+    }
+   }
+   if (!state.editingEntryId) {
+    if (previousEntryMode) {
+     state.entryMode = previousEntryMode;
+     state.bulk = previousBulk;
+    }
+   }
+  }
+ }
  render();
  ensureTriggerPlacement();
  normalizeBuiltinTestUi();
