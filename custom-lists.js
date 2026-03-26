@@ -780,6 +780,7 @@ function makeField(labelText, control) {
  field.appendChild(control);
  return field;
 }
+ function makeCard() { return node("div", "dcl-card"); }
  function makeSectionHead(labelText, titleText, subtitleText) {
  const wrap = node("div", "dcl-section-head");
  const inner = node("div");
