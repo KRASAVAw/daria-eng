@@ -151,10 +151,7 @@ function primeNativeTapButton(element) {
    if (document.activeElement !== element) { element.focus(); }
    if (typeof element.select === 'function') { try { element.select(); } catch (error) {} }
   };
-  const focusLater = function (event) {
-   if (event) {
-    if (event.cancelable) { event.preventDefault(); }
-   }
+  const focusLater = function () {
    if (typeof window !== 'undefined') { window.setTimeout(focusNow, 0); return; }
    focusNow();
   };
@@ -1619,6 +1616,21 @@ function beginQuizTest() {
  quizState.finishedEarly = false;  
  syncQuizIndex(0);  
  renderQuiz();  
+  if (typeof document !== "undefined") {
+   const activeInput = document.getElementById("dcl-quiz-input");
+   if (activeInput) {
+    activeInput.focus();
+    if (typeof activeInput.select === "function") { try { activeInput.select(); } catch (error) {} }
+   }
+   if (typeof window !== "undefined") {
+    window.requestAnimationFrame(function () {
+     const retryInput = document.getElementById("dcl-quiz-input");
+     if (!retryInput) { return; }
+     retryInput.focus();
+     if (typeof retryInput.select === "function") { try { retryInput.select(); } catch (error) {} }
+    });
+   }
+  }
 }
 function startListQuiz(listId) {  
  let list = getListById(listId);  
