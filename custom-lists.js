@@ -645,7 +645,11 @@ if (input && !isQuizMobileViewport()) { input.focus(); if (typeof input.select =
  element.setAttribute("inputmode", "text");
  element.setAttribute("autocomplete", "off");
  element.setAttribute("autocapitalize", "off");
- bindMobileInputFocus(element);
+ element.style.touchAction = "auto";
+ element.style.webkitUserSelect = "text";
+ element.style.userSelect = "text";
+ element.style.webkitTouchCallout = "default";
+ element.style.cursor = "text";
  return element;
  }
  function makeField(labelText, control) {
