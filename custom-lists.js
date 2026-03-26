@@ -22,8 +22,7 @@
  let remoteHydratePromise = null;
  let remoteSaveTimer = 0;
  let remoteSaveInFlight = false;
- let lastTouchActionAt = 0;
- function makeId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+  function makeId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
  function text(value) { return String(value ? value : "").trim(); }
  function norm(value) { return text(value).toLowerCase(); }
  function safeArray(value) { return Array.isArray(value) ? value : []; }
@@ -33,24 +32,38 @@
  if (textValue !== undefined) { element.textContent = textValue; }
  return element;
  }
- function bindPress(element, handler) {
- const run = function (event) {
- if (event) {
- if (event.type === "click") {
- if (Math.min(Date.now() - lastTouchActionAt, 700) !== 700) { event.preventDefault(); return; }
- }
- if (event.type === "touchend") {
- lastTouchActionAt = Date.now();
- if (event.cancelable) { event.preventDefault(); }
- }
- }
- handler(event);
- };
- element.addEventListener("click", run);
- element.addEventListener("touchend", run, { passive: false });
- element.style.touchAction = "manipulation";
- return element;
- }
+ function bindPress(element, handler) { 
+ let lastPressAt = 0; 
+ const run = function (event) { 
+  const now = Date.now(); 
+  if (event) { 
+   if (event.type === 'pointerup') { 
+    if (event.pointerType === 'mouse') { 
+     if (event.button !== 0) { return; } 
+    } else if (event.pointerType) { 
+     lastPressAt = now; 
+    } 
+   } 
+   if (event.type === 'touchend') { lastPressAt = now; } 
+   if (event.type === 'click') { 
+    if (now - lastPressAt < 700) { return; } 
+   } 
+  } 
+  handler(event); 
+ }; 
+ if (typeof window !== 'undefined') { 
+  if ('PointerEvent' in window) { 
+   element.addEventListener('pointerup', run); 
+  } else { 
+   element.addEventListener('touchend', run, { passive: true }); 
+  } 
+ } else { 
+  element.addEventListener('touchend', run, { passive: true }); 
+ } 
+ element.addEventListener('click', run); 
+ element.style.touchAction = 'manipulation'; 
+ return element; 
+}
  function clear(element) {
  while (element.firstChild) { element.removeChild(element.firstChild); }
  }
@@ -1184,18 +1197,15 @@ function makeHomeCard(list) {
  editButton.style.position = "relative"; 
  editButton.style.zIndex = "2147483646"; 
  editButton.style.pointerEvents = "auto"; 
- editButton.onclick = function (event) { stopManageEvent(event); openHomeEditor(list.id); }; editButton.onmousedown = function (event) { if (event.button !== 0) { return; } stopManageEvent(event); openHomeEditor(list.id); }; 
  deleteButton.setAttribute("data-dcl-home-manage", "delete"); 
   deleteButton.setAttribute("data-dcl-home-delete", list.id); 
  deleteButton.style.position = "relative"; 
  deleteButton.style.zIndex = "2147483646"; 
  deleteButton.style.pointerEvents = "auto"; 
- deleteButton.onclick = function (event) { stopManageEvent(event); removeListById(list.id); }; deleteButton.onmousedown = function (event) { if (event.button !== 0) { return; } stopManageEvent(event); removeListById(list.id); };  
  if (canStart) { 
-    startButton.setAttribute("data-dcl-start-list", list.id); 
-      startButton.addEventListener("click", startFromButton); 
-    startButton.addEventListener("keydown", function (event) { if (["Enter", " "].indexOf(event.key) !== -1) { startFromButton(event); } }); 
-  startButton.onclick = startFromButton; startButton.onmousedown = function (event) { if (event.button !== 0) { return; } startFromButton(event); }; 
+    startButton.setAttribute('data-dcl-start-list', list.id); 
+    bindPress(startButton, startFromButton); 
+    startButton.addEventListener('keydown', function (event) { if (['Enter', ' '].indexOf(event.key) !== -1) { startFromButton(event); } }); 
  } 
  if (!canStart) { startButton.disabled = true; } 
  actions.appendChild(editButton); 
@@ -1230,9 +1240,6 @@ function renderHomeCards(historyButton) {
   homeCardsHost.style.zIndex = "2147483646";
   homeCardsHost.style.pointerEvents = "auto";
   homeCardsHost.style.isolation = "isolate";
-  homeCardsHost.addEventListener("click", handleHomeCardClick, true);
-  homeCardsHost.addEventListener("mousedown", handleHomeCardClick, true);
-  homeCardsHost.addEventListener("touchend", handleHomeCardClick, { capture: true, passive: false });
  }
  clear(homeCardsHost);
  customLists.forEach(function (list) { homeCardsHost.appendChild(makeHomeCard(list)); });
@@ -2113,10 +2120,6 @@ css.push("@media (max-width: 760px){.dcl-overlay{padding:0;align-items:stretch;j
  event.preventDefault(); event.stopPropagation(); if (event.stopImmediatePropagation) { event.stopImmediatePropagation(); } startListQuiz(startTarget.getAttribute("data-dcl-start-list"));
 }
 function handleDocumentClick(event) {
-  if (event.type === "click") {
-  if (Math.min(Date.now() - lastTouchActionAt, 700) !== 700) { return; }
-  }
-  if (event.type === "touchend") { lastTouchActionAt = Date.now(); }
  const eventElement = getEventElement(event.target);
  const button = eventElement ? (eventElement.closest ? eventElement.closest("button") : null) : null;
  const label = getBuiltinActionLabel(button);
@@ -2133,12 +2136,9 @@ function handleDocumentClick(event) {
   if (label === "Повторить") { event.preventDefault(); event.stopPropagation(); if (event.stopImmediatePropagation) { event.stopImmediatePropagation(); } startHistoryReplay(historySession.id, false); return; }
   if (label === "Пройти только ошибки") { event.preventDefault(); event.stopPropagation(); if (event.stopImmediatePropagation) { event.stopImmediatePropagation(); } startHistoryReplay(historySession.id, true); return; }
  }
- handleHomeCardClick(event);
 }
-document.addEventListener("click", handleDocumentClick, true);
-document.addEventListener("touchend", handleDocumentClick, { capture: true, passive: false });
-document.addEventListener("mousedown", handleHomeCardClick, true);document.addEventListener("keydown", function (event) { if (event.key === "Escape") { if (state.open) { closePanel(); } if (quizState.open) { closeQuiz(); } } });
-document.addEventListener("touchend", handleHomeCardClick, { capture: true, passive: false });
+document.addEventListener('click', handleDocumentClick, true); 
+document.addEventListener('keydown', function (event) { if (event.key === 'Escape') { if (state.open) { closePanel(); } if (quizState.open) { closeQuiz(); } } });
  observer = new MutationObserver(function () {
  window.clearTimeout(observerTimer);
  observerTimer = window.setTimeout(function () {
