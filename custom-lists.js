@@ -22,6 +22,7 @@
  let remoteHydratePromise = null;
  let remoteSaveTimer = 0;
  let remoteSaveInFlight = false;
+ let lastTouchActionAt = 0;
  function makeId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
  function text(value) { return String(value ? value : "").trim(); }
  function norm(value) { return text(value).toLowerCase(); }
@@ -30,6 +31,24 @@
  const element = document.createElement(tagName);
  if (className) { element.className = className; }
  if (textValue !== undefined) { element.textContent = textValue; }
+ return element;
+ }
+ function bindPress(element, handler) {
+ const run = function (event) {
+ if (event) {
+ if (event.type === "click") {
+ if (Math.min(Date.now() - lastTouchActionAt, 700) !== 700) { event.preventDefault(); return; }
+ }
+ if (event.type === "touchend") {
+ lastTouchActionAt = Date.now();
+ if (event.cancelable) { event.preventDefault(); }
+ }
+ }
+ handler(event);
+ };
+ element.addEventListener("click", run);
+ element.addEventListener("touchend", run, { passive: false });
+ element.style.touchAction = "manipulation";
  return element;
  }
  function clear(element) {
@@ -446,7 +465,7 @@ if (input) { input.focus(); if (typeof input.select === 'function') { input.sele
  function makeButton(className, label, onClick, type) {
  const element = node("button", className, label);
  element.type = type ? type : "button";
- if (typeof onClick === "function") { element.addEventListener("click", onClick); }
+ if (typeof onClick === "function") { bindPress(element, onClick); }
  return element;
  }
  function makeInput(id, value, placeholder) {
@@ -1213,6 +1232,7 @@ function renderHomeCards(historyButton) {
   homeCardsHost.style.isolation = "isolate";
   homeCardsHost.addEventListener("click", handleHomeCardClick, true);
   homeCardsHost.addEventListener("mousedown", handleHomeCardClick, true);
+  homeCardsHost.addEventListener("touchend", handleHomeCardClick, { capture: true, passive: false });
  }
  clear(homeCardsHost);
  customLists.forEach(function (list) { homeCardsHost.appendChild(makeHomeCard(list)); });
@@ -1878,7 +1898,7 @@ function installUi() {
  css.push("#dcl-inline{display:flex;justify-content:center;margin-top:12px}");
  css.push(".dcl-trigger,.dcl-btn,.dcl-close,.dcl-list-item{font:inherit}");
  css.push('.dcl-overlay,.dcl-overlay *{font-family:"DM Sans",sans-serif}');
- css.push(".dcl-trigger,.dcl-btn,.dcl-close{border:0;cursor:pointer}");
+css.push(".dcl-trigger,.dcl-btn,.dcl-close{border:0;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent}");
  css.push(".dcl-trigger{display:inline-flex;align-items:center;justify-content:center;padding:14px 22px;border-radius:999px;background:#ff4b6e;color:#fff;font-weight:800;box-shadow:0 14px 36px rgba(255,75,110,.35)}");
  css.push(".dcl-fab{position:fixed;right:18px;bottom:max(16px,env(safe-area-inset-bottom));z-index:9998}");
  css.push(".dcl-overlay{position:fixed;inset:0;padding:16px;background:rgba(11,3,7,.78);backdrop-filter:blur(12px);display:flex;align-items:center;justify-content:center;z-index:9999}");
@@ -2075,6 +2095,10 @@ css.push("@media (max-width: 760px){.dcl-overlay{padding:0;align-items:stretch;j
  floatingTrigger = createTrigger("dcl-trigger dcl-fab");
  inlineWrap = node("div");
  inlineWrap.id = "dcl-inline";
+ inlineWrap.style.position = "relative";
+ inlineWrap.style.zIndex = "2147483646";
+ inlineWrap.style.pointerEvents = "auto";
+ inlineWrap.style.touchAction = "manipulation";
  inlineWrap.appendChild(createTrigger("dcl-trigger"));
  function handleHomeCardClick(event) {
  const eventElement = getEventElement(event.target);
@@ -2089,6 +2113,10 @@ css.push("@media (max-width: 760px){.dcl-overlay{padding:0;align-items:stretch;j
  event.preventDefault(); event.stopPropagation(); if (event.stopImmediatePropagation) { event.stopImmediatePropagation(); } startListQuiz(startTarget.getAttribute("data-dcl-start-list"));
 }
 function handleDocumentClick(event) {
+  if (event.type === "click") {
+  if (Math.min(Date.now() - lastTouchActionAt, 700) !== 700) { return; }
+  }
+  if (event.type === "touchend") { lastTouchActionAt = Date.now(); }
  const eventElement = getEventElement(event.target);
  const button = eventElement ? (eventElement.closest ? eventElement.closest("button") : null) : null;
  const label = getBuiltinActionLabel(button);
@@ -2108,7 +2136,9 @@ function handleDocumentClick(event) {
  handleHomeCardClick(event);
 }
 document.addEventListener("click", handleDocumentClick, true);
+document.addEventListener("touchend", handleDocumentClick, { capture: true, passive: false });
 document.addEventListener("mousedown", handleHomeCardClick, true);document.addEventListener("keydown", function (event) { if (event.key === "Escape") { if (state.open) { closePanel(); } if (quizState.open) { closeQuiz(); } } });
+document.addEventListener("touchend", handleHomeCardClick, { capture: true, passive: false });
  observer = new MutationObserver(function () {
  window.clearTimeout(observerTimer);
  observerTimer = window.setTimeout(function () {
