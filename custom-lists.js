@@ -2208,8 +2208,63 @@ card.appendChild(node("div", "dcl-label", "Порядок слов"));
   input.style.webkitTouchCallout = "default";
   input.style.cursor = "text";
   bindMobileInputFocus(input, function () { return !quizState.checked; });
+  function keepQuizInputVisible() {
+   const viewport = typeof window !== "undefined" ? (window.visualViewport ? window.visualViewport : null) : null;
+   const primaryAction = document.getElementById("dcl-quiz-primary-action");
+   let viewportHeight = 0;
+   let layoutHeight = 0;
+   let keyboardInset = 0;
+   let targetPadding = 0;
+   if (!isQuizMobileViewport()) { return; }
+   if (!quizBody) { return; }
+   viewportHeight = viewport ? Math.round(viewport.height) : Math.round(window.innerHeight ? window.innerHeight : 0);
+   layoutHeight = Math.max(Math.round(window.innerHeight ? window.innerHeight : viewportHeight), viewportHeight);
+   if (viewport) {
+    keyboardInset = Math.max(0, layoutHeight - Math.round(viewport.height + viewport.offsetTop));
+   }
+   targetPadding = Math.max(24, keyboardInset + 20);
+   input.style.scrollMarginTop = "24px";
+   input.style.scrollMarginBottom = String(targetPadding + 72) + "px";
+   quizBody.style.overflowY = "auto";
+   quizBody.style.webkitOverflowScrolling = "touch";
+   quizBody.style.paddingBottom = "calc(" + String(targetPadding) + "px + env(safe-area-inset-bottom))";
+   if (primaryAction) {
+    primaryAction.style.scrollMarginBottom = String(targetPadding + 16) + "px";
+   }
+   window.setTimeout(function () {
+    if (primaryAction) {
+     if (typeof primaryAction.scrollIntoView === "function") {
+      try { primaryAction.scrollIntoView({ block: "end", inline: "nearest", behavior: "auto" }); return; } catch (error) {}
+     }
+    }
+    if (typeof form.scrollIntoView === "function") {
+     try { form.scrollIntoView({ block: "end", inline: "nearest", behavior: "auto" }); return; } catch (error) {}
+    }
+    if (typeof input.scrollIntoView === "function") {
+     try { input.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "auto" }); } catch (error) {}
+    }
+   }, 140);
+  }
+  function resetQuizInputVisible() {
+   const primaryAction = document.getElementById("dcl-quiz-primary-action");
+   if (!isQuizMobileViewport()) { return; }
+   input.style.scrollMarginTop = "";
+   input.style.scrollMarginBottom = "";
+   if (primaryAction) {
+    primaryAction.style.scrollMarginBottom = "";
+   }
+   if (quizBody) {
+    quizBody.style.paddingBottom = "";
+    quizBody.style.overflowY = "";
+   }
+  }
+  input.addEventListener("focus", function () { keepQuizInputVisible(); window.setTimeout(keepQuizInputVisible, 240); });
+  input.addEventListener("click", function () { keepQuizInputVisible(); window.setTimeout(keepQuizInputVisible, 240); });
+  input.addEventListener("touchend", function () { window.setTimeout(keepQuizInputVisible, 0); window.setTimeout(keepQuizInputVisible, 240); }, { passive: true });
+  input.addEventListener("blur", function () { window.setTimeout(resetQuizInputVisible, 120); });
  input.addEventListener("input", function () {
- quizState.input = input.value;
+ keepQuizInputVisible();
+  quizState.input = input.value;
  quizState.inputs[quizState.index] = input.value;
  });
   input.addEventListener("keydown", function (event) {
@@ -2255,6 +2310,30 @@ card.appendChild(node("div", "dcl-label", "Порядок слов"));
  screen.appendChild(topBar);
  screen.appendChild(createQuizJumpBar());
  screen.appendChild(card);
+ screen.addEventListener("touchstart", function (event) {
+  const target = event ? event.target : null;
+  if (!isQuizMobileViewport()) { return; }
+  if (document.activeElement !== input) { return; }
+  if (target === input) { return; }
+  if (target) {
+   if (target.closest) {
+    if (target.closest("input,textarea,select")) { return; }
+   }
+  }
+  try { input.blur(); } catch (error) {}
+ }, { passive: true });
+ screen.addEventListener("click", function (event) {
+  const target = event ? event.target : null;
+  if (!isQuizMobileViewport()) { return; }
+  if (document.activeElement !== input) { return; }
+  if (target === input) { return; }
+  if (target) {
+   if (target.closest) {
+    if (target.closest("input,textarea,select")) { return; }
+   }
+  }
+  try { input.blur(); } catch (error) {}
+ });
  quizBody.appendChild(screen);
   window.setTimeout(function () {
   const currentInput = document.getElementById("dcl-quiz-input");
@@ -2262,6 +2341,7 @@ card.appendChild(node("div", "dcl-label", "Порядок слов"));
   if (quizState.checked) { if (primaryAction) { primaryAction.focus(); } return; }
   if (!currentInput) { if (primaryAction) { primaryAction.focus(); } return; }
   if (!isQuizMobileViewport()) { currentInput.focus(); }
+  if (isQuizMobileViewport()) { window.setTimeout(function () { if (typeof currentInput.scrollIntoView === "function") { try { currentInput.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "auto" }); } catch (error) {} } }, 0); }
  }, 0);
 }  
 function installUi() {  
@@ -2349,7 +2429,7 @@ css.push(".dcl-trigger,.dcl-btn,.dcl-close{border:0;cursor:pointer;touch-action:
  css.push(".dcl-body::-webkit-scrollbar-track{background:rgba(255,255,255,.06);border-radius:999px}");
  css.push(".dcl-body::-webkit-scrollbar-thumb{background:linear-gradient(180deg,rgba(255,107,129,.85),rgba(255,75,110,.58));border-radius:999px;border:2px solid rgba(45,16,24,.9)}");
  css.push(".dcl-body::-webkit-scrollbar-thumb:hover{background:linear-gradient(180deg,rgba(255,120,140,.95),rgba(255,85,118,.7))}");
-  css.push(".dcl-quiz-body{display:flex;flex:1 1 auto;min-height:0;padding:18px 22px 22px;overflow:hidden}");
+  css.push(".dcl-quiz-body{display:flex;flex:1 1 auto;min-height:0;padding:18px 22px 22px;overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}");
   css.push(".dcl-quiz-screen{display:flex;flex-direction:column;gap:14px;flex:1 1 auto;min-height:0;height:100%}");
  css.push(".dcl-quiz-topbar{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;color:#fff;position:relative;z-index:4}");
  css.push(".dcl-quiz-icon-btn{width:44px;height:44px;border:0;border-radius:16px;background:rgba(255,255,255,.08);color:#fff;font:inherit;font-size:28px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;flex:0 0 auto;position:relative;z-index:4;touch-action:manipulation;-webkit-tap-highlight-color:transparent}");
@@ -2429,7 +2509,7 @@ css.push(".dcl-builtin-action-primary{flex:1 1 auto!important;min-height:60px!im
 css.push(".dcl-builtin-action-secondary{flex:0 0 60px!important;min-width:60px!important;min-height:60px!important;padding:0!important;border-radius:18px!important;background:rgba(255,255,255,.08)!important;color:#fff!important;box-shadow:none!important;display:inline-flex!important;align-items:center!important;justify-content:center!important}");
 css.push(".dcl-builtin-feedback{width:100%!important;margin-top:0!important}");
 css.push(".dcl-builtin-feedback .dcl-reveal-answer{margin-top:14px!important}");
-css.push("@media (max-width: 760px){.dcl-overlay{padding:0;align-items:stretch;justify-content:stretch}.dcl-quiz-overlay{padding:0;align-items:stretch;justify-content:stretch}.dcl-panel{width:100%;height:100%;min-height:100vh;min-height:100dvh;max-height:none;border-radius:0;border:0}.dcl-quiz-overlay .dcl-panel{width:100%;height:100%;min-height:100vh;min-height:100dvh;max-height:none;border-radius:0;border:0}.dcl-head{padding:calc(16px + env(safe-area-inset-top)) 16px 16px}.dcl-body{flex:1;min-height:0;padding:16px 16px calc(96px + env(safe-area-inset-bottom));overflow-y:auto}.dcl-main{padding-bottom:12px}.dcl-row{gap:14px}.dcl-entry-list{padding-right:0}.dcl-entry{padding:14px}.dcl-fab{right:12px;bottom:max(12px,env(safe-area-inset-bottom))}.dcl-entry-actions,.dcl-row .dcl-btn,.dcl-row >.dcl-field{width:100%}.dcl-quiz-body{padding:12px 14px calc(16px + env(safe-area-inset-bottom));overflow:hidden}.dcl-quiz-stage-card{flex:1 1 auto;min-height:0;padding:18px 16px}.dcl-quiz-step-number{font-size:72px}.dcl-quiz-stage-hint{font-size:14px}.dcl-quiz-stage-word{font-size:clamp(28px,10vw,46px)}.dcl-quiz-answer-input{font-size:18px;padding:16px 18px}.dcl-quiz-jump-list{gap:6px;padding-bottom:0;min-width:0;width:100%}.dcl-quiz-jump-arrow{min-width:0;height:40px;padding:0 4px;font-size:18px}.dcl-quiz-jump-btn{min-width:0;height:40px;padding:0 4px;font-size:14px}.dcl-quiz-jump-btn-disabled{opacity:.45}.dcl-quiz-finish-top{width:auto;min-height:44px}.dcl-quiz-action-primary{min-height:56px}.dcl-quiz-action-secondary{flex:0 0 56px;min-width:56px;min-height:56px;font-size:24px}.dcl-results-actions .dcl-btn{width:100%;min-height:56px}.dcl-results-mobile-open{display:flex}.dcl-results-mobile-open .dcl-btn{width:100%;min-height:52px}.dcl-results-card{padding:22px 18px}.dcl-results-card-title{font-size:24px}.dcl-results-stats{gap:10px}.dcl-results-stat-value{font-size:34px}.dcl-results-stat-score .dcl-results-stat-value{font-size:52px}.dcl-results-stat-score .dcl-results-stat-value span{font-size:26px}.dcl-results-copy{font-size:16px}.dcl-results-list{max-height:none}.dcl-results-item{padding:14px}.dcl-results-item-head{flex-direction:column;gap:6px}.dcl-results-item-prompt{font-size:18px}.dcl-results-item-answer{text-align:left;font-size:16px}.dcl-results-item-user{font-size:16px}}");
+css.push("@media (max-width: 760px){.dcl-overlay{padding:0;align-items:stretch;justify-content:stretch}.dcl-quiz-overlay{padding:0;align-items:stretch;justify-content:stretch}.dcl-panel{width:100%;height:100%;min-height:100vh;min-height:100dvh;max-height:none;border-radius:0;border:0}.dcl-quiz-overlay .dcl-panel{width:100%;height:100%;min-height:100vh;min-height:100dvh;max-height:none;border-radius:0;border:0}.dcl-head{padding:calc(16px + env(safe-area-inset-top)) 16px 16px}.dcl-body{flex:1;min-height:0;padding:16px 16px calc(96px + env(safe-area-inset-bottom));overflow-y:auto}.dcl-main{padding-bottom:12px}.dcl-row{gap:14px}.dcl-entry-list{padding-right:0}.dcl-entry{padding:14px}.dcl-fab{right:12px;bottom:max(12px,env(safe-area-inset-bottom))}.dcl-entry-actions,.dcl-row .dcl-btn,.dcl-row >.dcl-field{width:100%}.dcl-quiz-body{padding:12px 14px calc(16px + env(safe-area-inset-bottom));overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}.dcl-quiz-stage-card{flex:1 1 auto;min-height:0;padding:18px 16px}.dcl-quiz-step-number{font-size:72px}.dcl-quiz-stage-hint{font-size:14px}.dcl-quiz-stage-word{font-size:clamp(28px,10vw,46px)}.dcl-quiz-answer-input{font-size:18px;padding:16px 18px}.dcl-quiz-jump-list{gap:6px;padding-bottom:0;min-width:0;width:100%}.dcl-quiz-jump-arrow{min-width:0;height:40px;padding:0 4px;font-size:18px}.dcl-quiz-jump-btn{min-width:0;height:40px;padding:0 4px;font-size:14px}.dcl-quiz-jump-btn-disabled{opacity:.45}.dcl-quiz-finish-top{width:auto;min-height:44px}.dcl-quiz-action-primary{min-height:56px}.dcl-quiz-action-secondary{flex:0 0 56px;min-width:56px;min-height:56px;font-size:24px}.dcl-results-actions .dcl-btn{width:100%;min-height:56px}.dcl-results-mobile-open{display:flex}.dcl-results-mobile-open .dcl-btn{width:100%;min-height:52px}.dcl-results-card{padding:22px 18px}.dcl-results-card-title{font-size:24px}.dcl-results-stats{gap:10px}.dcl-results-stat-value{font-size:34px}.dcl-results-stat-score .dcl-results-stat-value{font-size:52px}.dcl-results-stat-score .dcl-results-stat-value span{font-size:26px}.dcl-results-copy{font-size:16px}.dcl-results-list{max-height:none}.dcl-results-item{padding:14px}.dcl-results-item-head{flex-direction:column;gap:6px}.dcl-results-item-prompt{font-size:18px}.dcl-results-item-answer{text-align:left;font-size:16px}.dcl-results-item-user{font-size:16px}}");
  css.push("@media (max-width: 760px){.dcl-quiz-overlay .dcl-body{padding-bottom:calc(24px + env(safe-area-inset-bottom))}.dcl-quiz-overlay .dcl-range-wrap{gap:10px;padding:12px 14px}.dcl-range-value-input{min-width:64px;max-width:64px;font-size:18px;padding:10px 6px}.dcl-setup-start-row{padding-top:8px}.dcl-setup-start-row .dcl-btn{min-height:56px}.dcl-quiz-action-primary,.dcl-quiz-action-secondary,.dcl-reveal-answer{touch-action:manipulation}}")
  style.textContent = css.join("");
  document.head.appendChild(style);
@@ -2460,182 +2540,179 @@ css.push("@media (max-width: 760px){.dcl-overlay{padding:0;align-items:stretch;j
  }
  applyQuizOverlayLayout();
  window.addEventListener("resize", applyQuizOverlayLayout);
- panel = node("div", "dcl-panel");
- head = node("div", "dcl-head");
- titleWrap = node("div");
- titleWrap.appendChild(node("h2", "", "Тест списка"));
- head.appendChild(titleWrap);
- head.appendChild(makeButton("dcl-close", "Закрыть", closeQuiz));
- panel.appendChild(head);
- quizBody = node("div", "dcl-body");
- panel.appendChild(quizBody);
- quizOverlay.appendChild(panel);
- quizOverlay.addEventListener("mousedown", function (event) { if (event.target === quizOverlay) { event.preventDefault(); event.stopPropagation(); } }, true);
- quizOverlay.addEventListener("click", function (event) { if (event.target === quizOverlay) { event.preventDefault(); event.stopPropagation(); } }, true);
-
- document.body.appendChild(quizOverlay);
- floatingTrigger = createTrigger("dcl-trigger dcl-fab");
- inlineWrap = node("div");
- inlineWrap.id = "dcl-inline";
- inlineWrap.style.position = "relative";
- inlineWrap.style.zIndex = "2147483646";
- inlineWrap.style.pointerEvents = "auto";
- inlineWrap.style.touchAction = "manipulation";
- inlineWrap.appendChild(createTrigger("dcl-trigger"));
- function handleHomeCardClick(event) {
- const eventElement = getEventElement(event.target);
- const editTarget = eventElement ? (eventElement.closest ? eventElement.closest("[data-dcl-home-edit]") : null) : null;
- const deleteTarget = eventElement ? (eventElement.closest ? eventElement.closest("[data-dcl-home-delete]") : null) : null;
- const startTarget = event.defaultPrevented ? null : getStartListTarget(eventElement);
- if (event.type === "mousedown") { if (event.button !== 0) { return; } }
- if (editTarget) { event.preventDefault(); event.stopPropagation(); if (event.stopImmediatePropagation) { event.stopImmediatePropagation(); } openHomeEditor(editTarget.getAttribute("data-dcl-home-edit")); return; }
- if (deleteTarget) { event.preventDefault(); event.stopPropagation(); if (event.stopImmediatePropagation) { event.stopImmediatePropagation(); } removeListById(deleteTarget.getAttribute("data-dcl-home-delete")); return; }
- if (!startTarget) { return; }
- if (startTarget.disabled) { return; }
- event.preventDefault(); event.stopPropagation(); if (event.stopImmediatePropagation) { event.stopImmediatePropagation(); } startListQuiz(startTarget.getAttribute("data-dcl-start-list"));
-}
-function handleDocumentClick(event) {
- const eventElement = getEventElement(event.target);
- const button = eventElement ? (eventElement.closest ? eventElement.closest("button") : null) : null;
- const label = getBuiltinActionLabel(button);
- const repeatSessionId = text(button ? button.getAttribute("data-dcl-history-repeat") : "");
- const mistakesSessionId = text(button ? button.getAttribute("data-dcl-history-mistakes") : "");
- const historySession = button ? getHistorySessionFromButton(button) : null;
- if (repeatSessionId) {
-  event.preventDefault(); event.stopPropagation(); if (event.stopImmediatePropagation) { event.stopImmediatePropagation(); } startHistoryReplay(repeatSessionId, false); return;
+function keepFocusedQuizInputVisibleFromViewport() {
+ const input = document.getElementById("dcl-quiz-input");
+ const primaryAction = document.getElementById("dcl-quiz-primary-action");
+ if (!input) { return; }
+ if (!isQuizMobileViewport()) { return; }
+ if (document.activeElement !== input) { return; }
+ if (primaryAction) {
+  if (typeof primaryAction.scrollIntoView === "function") {
+   try { primaryAction.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "auto" }); return; } catch (error) {}
+  }
  }
- if (mistakesSessionId) {
-  event.preventDefault(); event.stopPropagation(); if (event.stopImmediatePropagation) { event.stopImmediatePropagation(); } startHistoryReplay(mistakesSessionId, true); return;
- }
- if (historySession) {
-  if (label === "Повторить") { event.preventDefault(); event.stopPropagation(); if (event.stopImmediatePropagation) { event.stopImmediatePropagation(); } startHistoryReplay(historySession.id, false); return; }
-  if (label === "Пройти только ошибки") { event.preventDefault(); event.stopPropagation(); if (event.stopImmediatePropagation) { event.stopImmediatePropagation(); } startHistoryReplay(historySession.id, true); return; }
+ if (typeof input.scrollIntoView === "function") {
+  try { input.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "auto" }); } catch (error) {}
  }
 }
-document.addEventListener('click', handleDocumentClick, true); 
-document.addEventListener('keydown', function (event) { if (event.key === 'Escape') { if (state.open) { closePanel(); } if (quizState.open) { closeQuiz(); } } });
- observer = new MutationObserver(function () {
- window.clearTimeout(observerTimer);
- observerTimer = window.setTimeout(function () {
-  ensureTriggerPlacement();
-  normalizeBuiltinTestUi();
- }, 40);
- });
- observer.observe(document.body, { childList: true, subtree: true });
- ensureTriggerPlacement();
- }
- function refreshCloudState() {
-  const previousSelectedId = state.selectedId;
-  const previousEditorListId = state.editorListId;
-  const previousEditingEntryId = state.editingEntryId;
-  const previousEntryMode = state.entryMode;
-  const termInput = document.getElementById("dcl-entry-term");
-  const translationsInput = document.getElementById("dcl-entry-translations");
-  const bulkInput = document.getElementById("dcl-bulk-text");
-  const renameNameInput = document.getElementById("dcl-rename-name");
-  const renameEmojiInput = document.getElementById("dcl-rename-emoji");
-  const entrySearchInput = document.getElementById("dcl-entry-search");
-  const previousTerm = termInput ? termInput.value : state.term;
-  const previousTranslations = translationsInput ? translationsInput.value : state.translations;
-  const previousBulk = bulkInput ? bulkInput.value : state.bulk;
-  const previousRenameName = renameNameInput ? renameNameInput.value : state.renameName;
-  const previousRenameEmoji = renameEmojiInput ? renameEmojiInput.value : state.renameEmoji;
-  const previousEntrySearch = entrySearchInput ? entrySearchInput.value : state.entrySearch;
-  const activeElement = document.activeElement;
-  let activeId = "";
-  if (activeElement) { if (activeElement.id) { activeId = activeElement.id; } }
-  const previousScrollTop = body ? body.scrollTop : 0;
-  loadStore();
-  if (previousSelectedId) {
-   if (state.lists.some(function (list) { return list.id === previousSelectedId; })) { state.selectedId = previousSelectedId; }
-  }
-  if (previousEditorListId) {
-   const sameList = state.lists.find(function (list) { return list.id === previousEditorListId; });
-   if (sameList) {
-    state.editorListId = previousEditorListId;
-    state.renameName = previousRenameName;
-    state.renameEmoji = previousRenameEmoji;
-    state.entrySearch = previousEntrySearch;
-    if (previousEditingEntryId) {
-     if (sameList.entries.some(function (entry) { return entry.id === previousEditingEntryId; })) {
-      state.editingEntryId = previousEditingEntryId;
-      state.entryMode = "manual";
-      state.term = previousTerm;
-      state.translations = previousTranslations;
-     }
-    }
-    if (!state.editingEntryId) {
-     if (previousEntryMode === "manual") {
-      state.entryMode = "manual";
-      state.term = previousTerm;
-      state.translations = previousTranslations;
-      state.bulk = "";
-     } else if (previousEntryMode) {
-      state.entryMode = previousEntryMode;
-      state.bulk = previousBulk;
-     }
-    }
-   }
-  }
-  render();
-  if (previousEditorListId) {
-   if (body) { body.scrollTop = previousScrollTop; }
-   if (activeId) {
-    const nextActive = document.getElementById(activeId);
-    if (nextActive) { if (typeof nextActive.focus === "function") { try { nextActive.focus({ preventScroll: true }); } catch (error) { try { nextActive.focus(); } catch (innerError) {} } } }
-   }
-  }
-  ensureTriggerPlacement();
-  normalizeBuiltinTestUi();
- }
-function startInit() {
- loadStore();
- installUi();
- render();
- normalizeBuiltinTestUi();
- window.addEventListener("dcl-cloud-sync", refreshCloudState);
- if (typeof window.__dclForceCloudPull === "function") { window.setTimeout(function () { window.__dclForceCloudPull().then(refreshCloudState).catch(function () { return null; }); }, 0); }
- }
- function init() {
- Promise.resolve(window.__dclCloudReady).catch(function () { return null; }).then(startInit);
- }
- if (document.readyState === "loading") {
- document.addEventListener("DOMContentLoaded", init, { once: true });
- } else {
- init();
- }
+window.addEventListener("resize", function () { if (quizState.open) { window.setTimeout(keepFocusedQuizInputVisibleFromViewport, 80); } });
+if (window.visualViewport) {
+ window.visualViewport.addEventListener("resize", function () { if (quizState.open) { window.setTimeout(keepFocusedQuizInputVisibleFromViewport, 80); } });
+ window.visualViewport.addEventListener("scroll", function () { if (quizState.open) { window.setTimeout(keepFocusedQuizInputVisibleFromViewport, 80); } });
+}
+panel = node("div", "dcl-panel");  
+head = node("div", "dcl-head");  
+titleWrap = node("div");  
+titleWrap.appendChild(node("h2", "", "\u0422\u0435\u0441\u0442 \u0441\u043f\u0438\u0441\u043a\u0430"));  
+head.appendChild(titleWrap);  
+head.appendChild(makeButton("dcl-close", "\u0417\u0430\u043a\u0440\u044b\u0442\u044c", closeQuiz));  
+panel.appendChild(head);  
+quizBody = node("div", "dcl-body");  
+panel.appendChild(quizBody);  
+quizOverlay.appendChild(panel);  
+quizOverlay.addEventListener("mousedown", function (event) { if (event.target === quizOverlay) { event.preventDefault(); event.stopPropagation(); } }, true);  
+quizOverlay.addEventListener("click", function (event) { if (event.target === quizOverlay) { event.preventDefault(); event.stopPropagation(); } }, true);  
+function blurActiveEditableOnTouch(event) {  
+const active = document.activeElement;  
+const target = event ? event.target : null;  
+if (!active) { return; }  
+if (active.tagName !== "INPUT") { if (active.tagName !== "TEXTAREA") { return; } }  
+if (target === active) { return; }  
+if (target) {  
+if (target.closest) {  
+if (target.closest("input,textarea,[contenteditable=true]")) { return; }  
+}  
+}  
+if (typeof active.blur === "function") { try { active.blur(); } catch (error) {} }  
+}  
+document.addEventListener("touchstart", blurActiveEditableOnTouch, { passive: true, capture: true });  
+document.addEventListener("pointerdown", function (event) { if (event.pointerType === "touch") { blurActiveEditableOnTouch(event); } }, true); 
+document.body.appendChild(quizOverlay);  
+floatingTrigger = createTrigger("dcl-trigger dcl-fab");  
+inlineWrap = node("div");  
+inlineWrap.id = "dcl-inline";  
+inlineWrap.style.position = "relative";  
+inlineWrap.style.zIndex = "2147483646";  
+inlineWrap.style.pointerEvents = "auto";  
+inlineWrap.style.touchAction = "manipulation";  
+inlineWrap.appendChild(createTrigger("dcl-trigger"));  
+function handleHomeCardClick(event) {  
+const eventElement = getEventElement(event.target);  
+const editTarget = eventElement ? (eventElement.closest ? eventElement.closest("[data-dcl-home-edit]") : null) : null;  
+const deleteTarget = eventElement ? (eventElement.closest ? eventElement.closest("[data-dcl-home-delete]") : null) : null;  
+const startTarget = event.defaultPrevented ? null : getStartListTarget(eventElement);  
+if (event.type === "mousedown") { if (event.button !== 0) { return; } }  
+if (editTarget) { event.preventDefault(); event.stopPropagation(); if (event.stopImmediatePropagation) { event.stopImmediatePropagation(); } openHomeEditor(editTarget.getAttribute("data-dcl-home-edit")); return; }  
+if (deleteTarget) { event.preventDefault(); event.stopPropagation(); if (event.stopImmediatePropagation) { event.stopImmediatePropagation(); } removeListById(deleteTarget.getAttribute("data-dcl-home-delete")); return; }  
+if (!startTarget) { return; }  
+if (startTarget.disabled) { return; }  
+event.preventDefault(); event.stopPropagation(); if (event.stopImmediatePropagation) { event.stopImmediatePropagation(); } startListQuiz(startTarget.getAttribute("data-dcl-start-list"));  
+}function handleDocumentClick(event) {  
+const eventElement = getEventElement(event.target);  
+const button = eventElement ? (eventElement.closest ? eventElement.closest("button") : null) : null;  
+const label = getBuiltinActionLabel(button);  
+const repeatSessionId = text(button ? button.getAttribute("data-dcl-history-repeat") : "");  
+const mistakesSessionId = text(button ? button.getAttribute("data-dcl-history-mistakes") : "");  
+const historySession = button ? getHistorySessionFromButton(button) : null;  
+if (repeatSessionId) {  
+event.preventDefault(); event.stopPropagation(); if (event.stopImmediatePropagation) { event.stopImmediatePropagation(); } startHistoryReplay(repeatSessionId, false); return;  
+}  
+if (mistakesSessionId) {  
+event.preventDefault(); event.stopPropagation(); if (event.stopImmediatePropagation) { event.stopImmediatePropagation(); } startHistoryReplay(mistakesSessionId, true); return;  
+}  
+if (historySession) {  
+if (label === "\u041f\u043e\u0432\u0442\u043e\u0440\u0438\u0442\u044c") { event.preventDefault(); event.stopPropagation(); if (event.stopImmediatePropagation) { event.stopImmediatePropagation(); } startHistoryReplay(historySession.id, false); return; }  
+if (label === "\u041f\u0440\u043e\u0439\u0442\u0438 \u0442\u043e\u043b\u044c\u043a\u043e \u043e\u0448\u0438\u0431\u043a\u0438") { event.preventDefault(); event.stopPropagation(); if (event.stopImmediatePropagation) { event.stopImmediatePropagation(); } startHistoryReplay(historySession.id, true); return; }  
+}  
+}  
+document.addEventListener("click", handleDocumentClick, true);  
+document.addEventListener("keydown", function (event) { if (event.key === "Escape") { if (state.open) { closePanel(); } if (quizState.open) { closeQuiz(); } } });  
+observer = new MutationObserver(function () {  
+window.clearTimeout(observerTimer);  
+observerTimer = window.setTimeout(function () {  
+ensureTriggerPlacement();  
+normalizeBuiltinTestUi();  
+}, 40);  
+});  
+observer.observe(document.body, { childList: true, subtree: true });  
+ensureTriggerPlacement();  
+}function refreshCloudState() {  
+const previousSelectedId = state.selectedId;  
+const previousEditorListId = state.editorListId;  
+const previousEditingEntryId = state.editingEntryId;  
+const previousEntryMode = state.entryMode;  
+const termInput = document.getElementById("dcl-entry-term");  
+const translationsInput = document.getElementById("dcl-entry-translations");  
+const bulkInput = document.getElementById("dcl-bulk-text");  
+const renameNameInput = document.getElementById("dcl-rename-name");  
+const renameEmojiInput = document.getElementById("dcl-rename-emoji");  
+const entrySearchInput = document.getElementById("dcl-entry-search");  
+const previousTerm = termInput ? termInput.value : state.term;  
+const previousTranslations = translationsInput ? translationsInput.value : state.translations;  
+const previousBulk = bulkInput ? bulkInput.value : state.bulk;  
+const previousRenameName = renameNameInput ? renameNameInput.value : state.renameName;  
+const previousRenameEmoji = renameEmojiInput ? renameEmojiInput.value : state.renameEmoji;  
+const previousEntrySearch = entrySearchInput ? entrySearchInput.value : state.entrySearch;  
+const activeElement = document.activeElement;  
+let activeId = "";  
+if (activeElement) { if (activeElement.id) { activeId = activeElement.id; } }  
+const previousScrollTop = body ? body.scrollTop : 0;  
+loadStore();  
+if (previousSelectedId) {  
+if (state.lists.some(function (list) { return list.id === previousSelectedId; })) { state.selectedId = previousSelectedId; }  
+}  
+if (previousEditorListId) {  
+const sameList = state.lists.find(function (list) { return list.id === previousEditorListId; });  
+if (sameList) {  
+state.editorListId = previousEditorListId;  
+state.renameName = previousRenameName;  
+state.renameEmoji = previousRenameEmoji;  
+state.entrySearch = previousEntrySearch;  
+if (previousEditingEntryId) {  
+if (sameList.entries.some(function (entry) { return entry.id === previousEditingEntryId; })) {  
+state.editingEntryId = previousEditingEntryId;  
+state.entryMode = "manual";  
+state.term = previousTerm;  
+state.translations = previousTranslations;  
+}  
+}if (!state.editingEntryId) {  
+if (previousEntryMode === "manual") {  
+state.entryMode = "manual";  
+state.term = previousTerm;  
+state.translations = previousTranslations;  
+state.bulk = "";  
+} else if (previousEntryMode) {  
+state.entryMode = previousEntryMode;  
+state.bulk = previousBulk;  
+}  
+}  
+}  
+}  
+render();  
+if (previousEditorListId) {  
+if (body) { body.scrollTop = previousScrollTop; }  
+if (activeId) {  
+const nextActive = document.getElementById(activeId);  
+if (nextActive) { if (typeof nextActive.focus === "function") { try { nextActive.focus({ preventScroll: true }); } catch (error) { try { nextActive.focus(); } catch (innerError) {} } } }  
+}  
+}  
+ensureTriggerPlacement();  
+normalizeBuiltinTestUi();  
+}  
+function startInit() {  
+loadStore();  
+installUi();  
+render();  
+normalizeBuiltinTestUi();  
+window.addEventListener("dcl-cloud-sync", refreshCloudState);  
+if (typeof window.__dclForceCloudPull === "function") { window.setTimeout(function () { window.__dclForceCloudPull().then(refreshCloudState).catch(function () { return null; }); }, 0); }  
+}  
+function init() {  
+Promise.resolve(window.__dclCloudReady).catch(function () { return null; }).then(startInit);  
+}  
+if (document.readyState === "loading") {  
+document.addEventListener("DOMContentLoaded", init, { once: true });  
+} else {  
+init();  
+}  
 })();
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
