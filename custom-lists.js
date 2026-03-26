@@ -504,7 +504,7 @@ function openHomeEditor(listId) { loadStore(); showPanel(); openListEditor(listI
  const selected = state.lists.find(function (list) { return list.id === listId; });
  let nextDeletedBuiltins = state.deletedBuiltins.slice();
  if (!selected) { return; }
- if (!window.confirm("Удалить список \"" + selected.name + "\"?")) { return; }
+ if (!window.confirm("Удалить список \"" + selected.name + "\"?1")) { return; }
  if (selected.source.indexOf("builtin-") === 0) { nextDeletedBuiltins = uniqueValues(nextDeletedBuiltins.concat(selected.source)); }
  if (state.editorListId === selected.id) { state.editorListId = ""; state.entryMode = ""; }
  state.notice = "Список удален.";
@@ -596,7 +596,7 @@ function scrollEntryEditorIntoView() {
 const card = document.getElementById('dcl-entry-editor-card');  
 const input = document.getElementById('dcl-entry-term');  
 if (card) {  
-if (typeof card.scrollIntoView === 'function') { card.scrollIntoView({ behavior: 'smooth', block: 'start' }); }  
+if (typeof card.scrollIntoView === 'function') { card.scrollIntoView({ behavior: 'auto', block: 'start' }); }  
 }  
 if (input && !isQuizMobileViewport()) { input.focus(); if (typeof input.select === "function") { input.select(); } }
 }
@@ -2394,6 +2394,9 @@ document.addEventListener('keydown', function (event) { if (event.key === 'Escap
  const previousTerm = state.term;
  const previousTranslations = state.translations;
  const previousBulk = state.bulk;
+ const activeElement = document.activeElement;
+ const activeId = activeElement && activeElement.id ? activeElement.id : "";
+ const previousScrollTop = body ? body.scrollTop : 0;
  loadStore();
  if (previousSelectedId) {
   if (state.lists.some(function (list) { return list.id === previousSelectedId; })) { state.selectedId = previousSelectedId; }
@@ -2410,19 +2413,26 @@ document.addEventListener('keydown', function (event) { if (event.key === 'Escap
      state.translations = previousTranslations;
     }
    }
-   if (!state.editingEntryId) {
-    if (previousEntryMode) {
-     state.entryMode = previousEntryMode;
-     state.bulk = previousBulk;
-    }
+   if (!state.editingEntryId && previousEntryMode) {
+    state.entryMode = previousEntryMode;
+    state.bulk = previousBulk;
    }
   }
  }
  render();
+ if (previousEditorListId && body) {
+  body.scrollTop = previousScrollTop;
+  if (activeId) {
+   const nextActive = document.getElementById(activeId);
+   if (nextActive && typeof nextActive.focus === "function") {
+    try { nextActive.focus({ preventScroll: true }); } catch (error) { try { nextActive.focus(); } catch (innerError) {} }
+   }
+  }
+ }
  ensureTriggerPlacement();
  normalizeBuiltinTestUi();
- }
- function startInit() {
+}
+function startInit() {
  loadStore();
  installUi();
  render();
