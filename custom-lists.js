@@ -57,11 +57,11 @@ function bindPress(element, handler) {
  let touchScrollTop = 0; 
  function findScrollRoot(node) { 
   let root = null; 
-  if (!node) { return document.body; } 
-  if (!node.closest) { return document.body; } 
+  if (!node) { return document.scrollingElement ? document.scrollingElement : (document.documentElement ? document.documentElement : document.body); }
+  if (!node.closest) { return document.scrollingElement ? document.scrollingElement : (document.documentElement ? document.documentElement : document.body); }
   root = node.closest('.dcl-body, .dcl-results-list, .dcl-entry-list, .dcl-home-scroll'); 
   if (root) { return root; } 
-  return document.body; 
+  return document.scrollingElement ? document.scrollingElement : (document.documentElement ? document.documentElement : document.body);
  } 
  function clearTouchTracking() { 
   if (typeof window === 'undefined') { return; } 
@@ -143,14 +143,14 @@ function primeNativeTapButton(element) {
  let touchMoved = false; 
  let touchScrollRoot = null; 
  let touchScrollTop = 0; 
- function findScrollRoot(node) { 
-  let root = null; 
-  if (!node) { return document.body; } 
-  if (!node.closest) { return document.body; } 
-  root = node.closest('.dcl-body, .dcl-results-list, .dcl-entry-list, .dcl-home-scroll'); 
-  if (root) { return root; } 
-  return document.body; 
- } 
+ function findScrollRoot(node) {
+  let root = null;
+  if (!node) { return document.scrollingElement ? document.scrollingElement : (document.documentElement ? document.documentElement : document.body); }
+  if (!node.closest) { return document.scrollingElement ? document.scrollingElement : (document.documentElement ? document.documentElement : document.body); }
+  root = node.closest('.dcl-body, .dcl-results-list, .dcl-entry-list, .dcl-home-scroll');
+  if (root) { return root; }
+  return document.scrollingElement ? document.scrollingElement : (document.documentElement ? document.documentElement : document.body);
+ }
  function clearTouchTracking() { 
   if (typeof window === 'undefined') { return; } 
   window.removeEventListener('touchmove', markTouchMove, true); 
@@ -602,7 +602,7 @@ function openHomeEditor(listId) { loadStore(); showPanel(); openListEditor(listI
  const selected = state.lists.find(function (list) { return list.id === listId; });
  let nextDeletedBuiltins = state.deletedBuiltins.slice();
  if (!selected) { return; }
-if (!window.confirm("Удалить список \"" + selected.name + "\"?1")) { return; }
+if (!window.confirm("Удалить список \"" + selected.name + "\"?2")) { return; }
  if (selected.source.indexOf("builtin-") === 0) { nextDeletedBuiltins = uniqueValues(nextDeletedBuiltins.concat(selected.source)); }
  if (state.editorListId === selected.id) { state.editorListId = ""; state.entryMode = ""; }
  state.notice = "Список удален.";
@@ -734,7 +734,7 @@ if (input && !isQuizMobileViewport()) { input.focus(); if (typeof input.select =
  if (typeof onClick === "function") { bindPress(element, onClick); }
  return element;
  }
- function makeInput(id, value, placeholder) {
+function makeInput(id, value, placeholder) {
  const element = node("input", "dcl-input");
  element.id = id;
  element.type = "text";
@@ -749,6 +749,7 @@ if (input && !isQuizMobileViewport()) { input.focus(); if (typeof input.select =
  element.style.webkitTouchCallout = "default";
  element.style.cursor = "text";
  return element;
+}
 function makeField(labelText, control) {
  const field = node("div", "dcl-field");
  const label = node("label", "dcl-label", labelText);
@@ -779,8 +780,6 @@ function makeField(labelText, control) {
  field.appendChild(control);
  return field;
 }
- }
- function makeCard() { return node("div", "dcl-card"); }
  function makeSectionHead(labelText, titleText, subtitleText) {
  const wrap = node("div", "dcl-section-head");
  const inner = node("div");
