@@ -139,29 +139,35 @@ function primeNativeTapButton(element) {
   }, { passive: false }); 
   return element; 
  } 
- function bindMobileInputFocus(element, shouldFocus) { 
-  if (!element) { return element; } 
-  if (element.__dclMobileFocusBound) { return element; } 
-  const canFocus = function () { 
-   if (typeof shouldFocus === 'function') { return !!shouldFocus(); } 
-   return shouldFocus !== false; 
-  }; 
-  const focusNow = function () { 
-   if (!canFocus()) { return; } 
-   if (document.activeElement !== element) { element.focus(); } 
-   if (typeof element.select === 'function') { try { element.select(); } catch (error) {} } 
-  }; 
-  element.__dclMobileFocusBound = true; 
-  element.addEventListener('touchend', focusNow, { passive: false }); 
-  if (typeof window !== 'undefined') { 
-   if ('PointerEvent' in window) { element.addEventListener('pointerup', focusNow); } 
-  } 
-  element.addEventListener('click', focusNow); 
-  element.style.touchAction = 'manipulation'; 
-  element.style.webkitUserSelect = 'text'; 
-  element.style.userSelect = 'text'; 
-  return element; 
- } 
+ function bindMobileInputFocus(element, shouldFocus) {
+  if (!element) { return element; }
+  if (element.__dclMobileFocusBound) { return element; }
+  const canFocus = function () {
+   if (typeof shouldFocus === 'function') { return !!shouldFocus(); }
+   return shouldFocus !== false;
+  };
+  const focusNow = function () {
+   if (!canFocus()) { return; }
+   if (document.activeElement !== element) { element.focus(); }
+   if (typeof element.select === 'function') { try { element.select(); } catch (error) {} }
+  };
+  const focusLater = function () {
+   if (typeof window !== 'undefined') { window.setTimeout(focusNow, 0); return; }
+   focusNow();
+  };
+  element.__dclMobileFocusBound = true;
+  element.addEventListener('touchstart', focusNow, { passive: true });
+  element.addEventListener('touchend', focusLater, { passive: false });
+  if (typeof window !== 'undefined') {
+   if ('PointerEvent' in window) { element.addEventListener('pointerdown', focusNow); element.addEventListener('pointerup', focusLater); }
+  }
+  element.addEventListener('mousedown', focusNow);
+  element.addEventListener('click', focusLater);
+  element.style.touchAction = 'manipulation';
+  element.style.webkitUserSelect = 'text';
+  element.style.userSelect = 'text';
+  return element;
+ }
  function clear(element) {
  while (element.firstChild) { element.removeChild(element.firstChild); }
  }
