@@ -32,38 +32,136 @@
  if (textValue !== undefined) { element.textContent = textValue; }
  return element;
  }
+ function getTouchPoint(event) { 
+ if (!event) { return null; } 
+ let touchList = null; 
+ if (event.changedTouches) { 
+  if (event.changedTouches.length) { touchList = event.changedTouches; } 
+ } else if (event.touches) { 
+  if (event.touches.length) { touchList = event.touches; } 
+ } 
+ if (touchList) { 
+  if (touchList[0]) { return { x: touchList[0].clientX, y: touchList[0].clientY }; } 
+ } 
+ if (typeof event.clientX === 'number') { 
+  if (typeof event.clientY === 'number') { return { x: event.clientX, y: event.clientY }; } 
+ } 
+ return null; 
+ } 
  function bindPress(element, handler) { 
- let lastPressAt = 0; 
- const run = function (event) { 
-  const now = Date.now(); 
-  if (event) { 
-   if (event.type === 'pointerup') { 
-    if (event.pointerType === 'mouse') { 
-     if (event.button !== 0) { return; } 
-    } else if (event.pointerType) { 
+  let lastPressAt = 0; 
+  let touchStart = null; 
+  let touchMoved = false;
+  const resetTouch = function () { touchStart = null; touchMoved = false; }; 
+  const markTouchStart = function (event) { touchStart = getTouchPoint(event); touchMoved = false; }; 
+  const markTouchMove = function (event) { 
+   if (!touchStart) { return; } 
+   const point = getTouchPoint(event); 
+   if (!point) { return; } 
+   const deltaX = Math.abs(point.x - touchStart.x); 
+   const deltaY = Math.abs(point.y - touchStart.y); 
+   if (deltaX > 12) { touchMoved = true; return; } 
+   if (deltaY > 12) { touchMoved = true; } 
+  }; 
+  const run = function (event) { 
+   const now = Date.now(); 
+   if (event) { 
+    if (event.type === 'pointerup') { 
+     if (event.pointerType === 'mouse') { 
+      if (event.button !== 0) { return; } 
+     } else if (event.pointerType === 'touch') { 
+      return; 
+     } else if (event.pointerType) { 
+      lastPressAt = now; 
+     } 
+    } 
+    if (event.type === 'touchend') { 
+     if (touchMoved) { resetTouch(); return; } 
      lastPressAt = now; 
+     resetTouch(); 
+     if (event.cancelable) { event.preventDefault(); } 
+    } 
+    if (event.type === 'touchcancel') { resetTouch(); return; }
+    if (event.type === 'click') { 
+     if (now - lastPressAt < 700) { return; } 
     } 
    } 
-   if (event.type === 'touchend') { lastPressAt = now; } 
-   if (event.type === 'click') { 
-    if (now - lastPressAt < 700) { return; } 
+   handler(event); 
+  }; 
+  element.addEventListener('touchstart', markTouchStart, { passive: true }); 
+  element.addEventListener('touchmove', markTouchMove, { passive: true }); 
+  element.addEventListener('touchcancel', run, { passive: true }); 
+  element.addEventListener('touchend', run, { passive: false }); 
+  if (typeof window !== 'undefined') { 
+   if ('PointerEvent' in window) { 
+    element.addEventListener('pointerup', run); 
    } 
   } 
-  handler(event); 
- }; 
- if (typeof window !== 'undefined') { 
-  if ('PointerEvent' in window) { 
-   element.addEventListener('pointerup', run); 
-  } else { 
-   element.addEventListener('touchend', run, { passive: true }); 
-  } 
- } else { 
-  element.addEventListener('touchend', run, { passive: true }); 
+  element.addEventListener('click', run); 
+  element.style.touchAction = 'manipulation'; 
+  element.style.webkitTapHighlightColor = 'transparent'; 
+  return element; 
  } 
- element.addEventListener('click', run); 
- element.style.touchAction = 'manipulation'; 
- return element; 
-}
+function primeNativeTapButton(element) { 
+  if (!element) { return element; } 
+  if (element.__dclTapPrimed) { return element; } 
+  let lastTapAt = 0; 
+  let touchStart = null; 
+  let touchMoved = false;
+  const resetTouch = function () { touchStart = null; touchMoved = false; }; 
+  const markTouchStart = function (event) { touchStart = getTouchPoint(event); touchMoved = false; }; 
+  const markTouchMove = function (event) { 
+   if (!touchStart) { return; } 
+   const point = getTouchPoint(event); 
+   if (!point) { return; } 
+   const deltaX = Math.abs(point.x - touchStart.x); 
+   const deltaY = Math.abs(point.y - touchStart.y); 
+   if (deltaX > 12) { touchMoved = true; return; } 
+   if (deltaY > 12) { touchMoved = true; } 
+  }; 
+  element.__dclTapPrimed = true; 
+  element.style.touchAction = 'manipulation'; 
+  element.style.webkitTapHighlightColor = 'transparent'; 
+  element.addEventListener('touchstart', markTouchStart, { passive: true }); 
+  element.addEventListener('touchmove', markTouchMove, { passive: true }); 
+  element.addEventListener('touchcancel', resetTouch, { passive: true }); 
+  element.addEventListener('touchend', function (event) { 
+   const now = Date.now(); 
+   if (touchMoved) { resetTouch(); return; } 
+   resetTouch(); 
+   if (now - lastTapAt < 500) { return; } 
+   lastTapAt = now; 
+   if (element.disabled) { return; } 
+   if (event.cancelable) { event.preventDefault(); } 
+   event.stopPropagation(); 
+   if (event.stopImmediatePropagation) { event.stopImmediatePropagation(); } 
+   if (typeof element.click === 'function') { element.click(); } 
+  }, { passive: false }); 
+  return element; 
+ } 
+ function bindMobileInputFocus(element, shouldFocus) { 
+  if (!element) { return element; } 
+  if (element.__dclMobileFocusBound) { return element; } 
+  const canFocus = function () { 
+   if (typeof shouldFocus === 'function') { return !!shouldFocus(); } 
+   return shouldFocus !== false; 
+  }; 
+  const focusNow = function () { 
+   if (!canFocus()) { return; } 
+   if (document.activeElement !== element) { element.focus(); } 
+   if (typeof element.select === 'function') { try { element.select(); } catch (error) {} } 
+  }; 
+  element.__dclMobileFocusBound = true; 
+  element.addEventListener('touchend', focusNow, { passive: false }); 
+  if (typeof window !== 'undefined') { 
+   if ('PointerEvent' in window) { element.addEventListener('pointerup', focusNow); } 
+  } 
+  element.addEventListener('click', focusNow); 
+  element.style.touchAction = 'manipulation'; 
+  element.style.webkitUserSelect = 'text'; 
+  element.style.userSelect = 'text'; 
+  return element; 
+ } 
  function clear(element) {
  while (element.firstChild) { element.removeChild(element.firstChild); }
  }
@@ -740,11 +838,20 @@ if (input) { input.focus(); if (typeof input.select === 'function') { input.sele
  return button;
  }
  function findHistoryButton() {
- const buttons = Array.from(document.querySelectorAll("button"));
- const found = buttons.find(function (button) { return norm((button.textContent ? button.textContent : "").replace(/\s+/g, " ")) === "история ответов"; });
+ const buttons = Array.from(document.querySelectorAll('button'));
+ const found = buttons.find(function (button) { return norm((button.textContent ? button.textContent : '').replace(/\s+/g, ' ')) === 'история ответов'; });
+ if (found) { primeNativeTapButton(found); }
  return found ? found : null;
  }
- function ensureTriggerPlacement() {
+ function primeBuiltinTapButtons() {
+Array.from(document.querySelectorAll("button")).forEach(function (button) {
+ if (!button) { return; }
+ if (isInsideCustomOverlay(button)) { return; }
+ primeNativeTapButton(button);
+});
+}
+function ensureTriggerPlacement() {
+ primeBuiltinTapButtons();
  const historyButton = findHistoryButton();
  if (historyButton) {
  if (historyButton.parentElement) {
@@ -1003,7 +1110,7 @@ function normalizeBuiltinFeedback() {
   message.appendChild(node("div", "dcl-quiz-feedback-hint", "\u041d\u0430\u0436\u043c\u0438, \u0447\u0442\u043e\u0431\u044b \u043f\u043e\u043a\u0430\u0437\u0430\u0442\u044c \u043f\u0440\u0430\u0432\u0438\u043b\u044c\u043d\u044b\u0439 \u043e\u0442\u0432\u0435\u0442")); 
   reveal = node("button", "dcl-reveal-answer dcl-reveal-answer-blurred", "\u041f\u0440\u0430\u0432\u0438\u043b\u044c\u043d\u044b\u0439 \u043e\u0442\u0432\u0435\u0442: " + answer); 
   reveal.type = "button"; 
-  reveal.addEventListener("click", function () { 
+  bindPress(reveal, function () { 
    reveal.classList.toggle("dcl-reveal-answer-blurred"); 
    reveal.classList.toggle("dcl-reveal-answer-open"); 
   }); 
@@ -1716,13 +1823,30 @@ function renderQuiz() {
   range.value = String(quizState.count);
   rangeValue = makeInput("dcl-range-value-input", String(quizState.count), String(quizState.count));
   rangeValue.className = "dcl-input dcl-range-value dcl-range-value-input";
-  rangeValue.type = "number";
+  rangeValue.type = "text";
   rangeValue.min = "1";
   rangeValue.max = String(totalCount);
   rangeValue.inputMode = "numeric";
   rangeValue.pattern = "[0-9]*";
   rangeValue.setAttribute("enterkeyhint", "done");
+rangeValue.autocomplete = 'off';
+  rangeValue.autocorrect = 'off';
+  rangeValue.autocapitalize = 'off';
+  rangeValue.spellcheck = false;
+  rangeValue.style.pointerEvents = 'auto';
+  rangeValue.style.position = 'relative';
+  rangeValue.style.zIndex = '4';
+  rangeValue.style.touchAction = 'manipulation';
+  rangeValue.style.webkitUserSelect = 'text';
+  rangeValue.style.userSelect = 'text';
+  function focusRangeValue(event) {
+   if (event) { if (event.stopPropagation) { event.stopPropagation(); } }
+   if (document.activeElement !== rangeValue) { rangeValue.focus(); }
+   if (typeof rangeValue.select === "function") { rangeValue.select(); }
+  }
   rangeValue.addEventListener("focus", function () { if (typeof rangeValue.select === "function") { rangeValue.select(); } });
+  bindMobileInputFocus(rangeValue);
+  rangeValue.addEventListener('touchstart', function (event) { if (event.stopPropagation) { event.stopPropagation(); } }, { passive: true });
   function syncQuizCountControls() {
    const nextValue = String(clampQuizCount(totalCount, quizState.count));
    quizState.count = Number(nextValue);
@@ -1876,10 +2000,7 @@ card.appendChild(node("div", "dcl-label", "Порядок слов"));
  input.setAttribute("inputmode", "text");
  input.setAttribute("enterkeyhint", quizState.checked ? "next" : "done");
  input.style.pointerEvents = "auto";
- input.addEventListener("touchstart", function () { if (!quizState.checked) { input.focus(); } }, { passive: true });
- input.addEventListener("touchend", function () { if (!quizState.checked) { input.focus(); } }, { passive: true });
- input.addEventListener("pointerup", function () { if (!quizState.checked) { input.focus(); } });
- input.addEventListener("click", function () { if (!quizState.checked) { input.focus(); } });
+  bindMobileInputFocus(input, function () { return !quizState.checked; });
  input.addEventListener("input", function () {
  quizState.input = input.value;
  quizState.inputs[quizState.index] = input.value;
