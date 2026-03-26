@@ -96,6 +96,7 @@ function bindPress(element, handler) {
  function markTouchStart(event) { 
   touchStart = getTouchPoint(event); 
   touchMoved = false; 
+  lastPressAt = Date.now();
   touchScrollRoot = findScrollRoot(element); 
   touchScrollTop = typeof touchScrollRoot.scrollTop === 'number' ? touchScrollRoot.scrollTop : 0; 
   if (typeof window !== 'undefined') { 
@@ -112,15 +113,15 @@ function bindPress(element, handler) {
     else if (event.pointerType === 'touch') { return; } 
     else if (event.pointerType) { lastPressAt = now; } 
    } 
-   if (event.type === 'touchend') { 
-    markTouchEndCheck(); 
-    if (touchMoved) { resetTouch(); return; } 
-    lastPressAt = now; 
-    resetTouch(); 
-    if (event.cancelable) { event.preventDefault(); } 
-   } 
-   if (event.type === 'touchcancel') { resetTouch(); return; } 
-   if (event.type === 'click') { if (lastPressAt) { if (!Math.floor((now - lastPressAt) / 700)) { return; } } } 
+   if (event.type === 'touchend') {
+    markTouchEndCheck();
+    if (touchMoved) { lastPressAt = now; resetTouch(); return; }
+    lastPressAt = now;
+    resetTouch();
+    if (event.cancelable) { event.preventDefault(); }
+   }
+   if (event.type === 'touchcancel') { lastPressAt = now; resetTouch(); return; }
+   if (event.type === 'click') { if (lastPressAt) { if (!Math.floor((now - lastPressAt) / 700)) { return; } } }
   } 
   handler(event); 
  } 
@@ -263,36 +264,59 @@ function unlockDocumentScroll() {
  if (typeof window !== "undefined") { window.scrollTo(0, scrollY); }
 }
 function bindMobileInputFocus(element, shouldFocus) {
-  if (!element) { return element; }
-  if (element.__dclMobileFocusBound) { return element; }
-  const canFocus = function () {
-   if (typeof shouldFocus === 'function') { return !!shouldFocus(); }
-   return shouldFocus !== false;
-  };
-  const focusNow = function () {
-   if (!canFocus()) { return; }
-   if (document.activeElement !== element) { element.focus(); }
-   if (typeof element.select === 'function') { try { element.select(); } catch (error) {} }
-  };
-  const focusLater = function () {
-   if (typeof window !== 'undefined') { window.setTimeout(focusNow, 0); return; }
-   focusNow();
-  };
-  element.__dclMobileFocusBound = true;
-  element.addEventListener('touchstart', focusNow, { passive: true });
-  element.addEventListener('touchend', focusLater, { passive: false });
-  if (typeof window !== 'undefined') {
-   if ('PointerEvent' in window) { element.addEventListener('pointerdown', focusNow); element.addEventListener('pointerup', focusLater); }
+ if (!element) { return element; }
+ if (element.__dclMobileFocusBound) { return element; }
+ let touchStart = null;
+ let touchMoved = false;
+ const canFocus = function () {
+  if (typeof shouldFocus === 'function') { return !!shouldFocus(); }
+  return shouldFocus !== false;
+ };
+ const resetTouch = function () {
+  touchStart = null;
+  touchMoved = false;
+ };
+ const focusNow = function () {
+  if (!canFocus()) { return; }
+  if (document.activeElement !== element) {
+   try { element.focus({ preventScroll: true }); } catch (error) { try { element.focus(); } catch (innerError) {} }
   }
-  element.addEventListener('mousedown', focusNow);
-  element.addEventListener('click', focusLater);
-  element.style.touchAction = 'auto';
-  element.style.webkitUserSelect = 'text';
-  element.style.userSelect = 'text';
-  element.style.webkitTouchCallout = 'default';
-  element.style.cursor = 'text';
-  return element;
+ };
+ const markTouchStart = function (event) {
+  touchStart = getTouchPoint(event);
+  touchMoved = false;
+ };
+ const markTouchMove = function (event) {
+  const point = touchStart ? getTouchPoint(event) : null;
+  if (!point) { return; }
+  if (Math.floor(Math.abs(point.x - touchStart.x) / 8)) { touchMoved = true; }
+  if (Math.floor(Math.abs(point.y - touchStart.y) / 8)) { touchMoved = true; }
+ };
+ const handleTouchEnd = function () {
+  if (touchMoved) { resetTouch(); return; }
+  resetTouch();
+  focusNow();
+ };
+ element.__dclMobileFocusBound = true;
+ element.addEventListener('touchstart', markTouchStart, { passive: true });
+ element.addEventListener('touchmove', markTouchMove, { passive: true });
+ element.addEventListener('touchcancel', resetTouch, { passive: true });
+ element.addEventListener('touchend', handleTouchEnd, { passive: true });
+ if (typeof window !== 'undefined') {
+  if ('PointerEvent' in window) { element.addEventListener('pointerup', function (event) { if (event.pointerType === 'touch') { focusNow(); } }); }
  }
+ element.addEventListener('click', focusNow);
+ element.addEventListener('mousedown', function () { if (!isQuizMobileViewport()) { focusNow(); } });
+ element.style.touchAction = 'auto';
+ element.style.webkitUserSelect = 'text';
+ element.style.userSelect = 'text';
+ element.style.webkitTouchCallout = 'default';
+ element.style.cursor = 'text';
+ element.style.pointerEvents = 'auto';
+ element.style.position = 'relative';
+ element.style.zIndex = '2';
+ return element;
+}
  function clear(element) {
  while (element.firstChild) { element.removeChild(element.firstChild); }
  }
@@ -578,7 +602,7 @@ function openHomeEditor(listId) { loadStore(); showPanel(); openListEditor(listI
  const selected = state.lists.find(function (list) { return list.id === listId; });
  let nextDeletedBuiltins = state.deletedBuiltins.slice();
  if (!selected) { return; }
- if (!window.confirm("Удалить список \"" + selected.name + "\"?2")) { return; }
+if (!window.confirm("Удалить список \"" + selected.name + "\"?1")) { return; }
  if (selected.source.indexOf("builtin-") === 0) { nextDeletedBuiltins = uniqueValues(nextDeletedBuiltins.concat(selected.source)); }
  if (state.editorListId === selected.id) { state.editorListId = ""; state.entryMode = ""; }
  state.notice = "Список удален.";
@@ -725,14 +749,36 @@ if (input && !isQuizMobileViewport()) { input.focus(); if (typeof input.select =
  element.style.webkitTouchCallout = "default";
  element.style.cursor = "text";
  return element;
- }
- function makeField(labelText, control) {
+function makeField(labelText, control) {
  const field = node("div", "dcl-field");
  const label = node("label", "dcl-label", labelText);
+ let touchStart = null;
+ let touchMoved = false;
+ const canFocusField = function () {
+  if (!control) { return false; }
+  if (!control.tagName) { return false; }
+  if (control.tagName === "INPUT") { return true; }
+  return control.tagName === "TEXTAREA";
+ };
+ const focusControl = function () {
+  if (!canFocusField()) { return; }
+  if (document.activeElement !== control) {
+   try { control.focus({ preventScroll: true }); } catch (error) { try { control.focus(); } catch (innerError) {} }
+  }
+ };
  if (control.id) { label.htmlFor = control.id; }
+ if (canFocusField()) {
+  field.addEventListener("touchstart", function (event) { if (event.target === control) { touchStart = null; touchMoved = false; return; } touchStart = getTouchPoint(event); touchMoved = false; }, { passive: true });
+  field.addEventListener("touchmove", function (event) { const point = touchStart ? getTouchPoint(event) : null; if (!point) { return; } if (Math.floor(Math.abs(point.x - touchStart.x) / 8)) { touchMoved = true; } if (Math.floor(Math.abs(point.y - touchStart.y) / 8)) { touchMoved = true; } }, { passive: true });
+  field.addEventListener("touchend", function (event) { if (event.target === control) { touchStart = null; touchMoved = false; return; } if (touchMoved) { touchStart = null; touchMoved = false; return; } touchStart = null; touchMoved = false; focusControl(); }, { passive: true });
+  field.addEventListener("click", function (event) { if (event.target === control) { return; } focusControl(); });
+  label.addEventListener("click", function () { focusControl(); });
+  field.style.pointerEvents = "auto";
+ }
  field.appendChild(label);
  field.appendChild(control);
  return field;
+}
  }
  function makeCard() { return node("div", "dcl-card"); }
  function makeSectionHead(labelText, titleText, subtitleText) {
@@ -876,9 +922,11 @@ function renderSelectedArea(main, selected) {
   form.addEventListener('submit', function (event) { event.preventDefault(); saveEntry(); }); 
   row = node('div', 'dcl-row'); 
   input = makeInput('dcl-entry-term', state.term, 'apple'); 
+  bindMobileInputFocus(input);
   input.addEventListener('input', function (event) { state.term = event.target.value; }); 
   row.appendChild(makeField('Слово', input)); 
   input = makeInput('dcl-entry-translations', state.translations, 'яблоко, яблочко'); 
+  bindMobileInputFocus(input);
   input.addEventListener('input', function (event) { state.translations = event.target.value; }); 
   row.appendChild(makeField('Переводы', input)); 
   form.appendChild(row); 
