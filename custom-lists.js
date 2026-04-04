@@ -5,7 +5,11 @@
  const LEGACY_KEYS = [STORAGE_KEY, "dasha_custom_lists_v3", "dasha_custom_lists_v2", "dasha_custom_lists_v1"];
  const BUILTIN_SOURCES = { irregular: "builtin-irregular", food: "builtin-food" };
  const HISTORY_KEY = "dasha_english_history_v1";
- const state = { open: false, lists: [], deletedBuiltins: [], selectedId: "", newListName: "", renameName: "", renameEmoji: "", term: "", translations: "", bulk: "", entrySearch: "", editingEntryId: "", editorListId: "", entryMode: "", notice: "", storeUpdatedAt: 0 };
+ // Cloud lists: Supabase is the ONLY source of truth
+ var cloudListsSnapshot = [];
+ function getCloudLists(){return (window.__dclCloudLists||[]).slice();}
+ function setCloudLists(lists){window.__dclCloudLists=lists;if(typeof window.__dclSchedulePush==="function"){window.__dclSchedulePush(lists);}}
+ const state = { open: false, lists: [], deletedBuiltins: [], deletedListIds: [], selectedId: "", newListName: "", renameName: "", renameEmoji: "", term: "", translations: "", bulk: "", entrySearch: "", editingEntryId: "", editorListId: "", entryMode: "", notice: "", storeUpdatedAt: 0 };
  const quizState = { open: false, step: "setup", listId: "", entries: [], pool: [], basePool: [], direction: "en_ru", count: 10, baseCount: 10, shuffle: false, index: 0, input: "", checked: false, results: [], inputs: [], finishedEarly: false, historySettings: null, mobileResultsOpen: false };
  let overlay;
  let body;
@@ -49,70 +53,77 @@
  return null; 
  } 
  
-function bindPress(element, handler) { 
- let lastPressAt = 0; 
- let touchStart = null; 
- let touchMoved = false; 
- let touchScrollRoot = null; 
- let touchScrollTop = 0; 
- function findScrollRoot(node) { 
-  let root = null; 
+function bindPress(element, handler) {
+ let lastPressAt = 0;
+ let lastHandledType = "";
+ let touchStart = null;
+ let touchMoved = false;
+ let touchScrollRoot = null;
+ let touchScrollTop = 0;
+ function findScrollRoot(node) {
+  let root = null;
   if (!node) { return document.scrollingElement ? document.scrollingElement : (document.documentElement ? document.documentElement : document.body); }
   if (!node.closest) { return document.scrollingElement ? document.scrollingElement : (document.documentElement ? document.documentElement : document.body); }
-  root = node.closest('.dcl-body, .dcl-results-list, .dcl-entry-list, .dcl-home-scroll'); 
-  if (root) { return root; } 
+  root = node.closest('.dcl-body, .dcl-results-list, .dcl-entry-list, .dcl-home-scroll');
+  if (root) { return root; }
   return document.scrollingElement ? document.scrollingElement : (document.documentElement ? document.documentElement : document.body);
- } 
- function clearTouchTracking() { 
-  if (typeof window === 'undefined') { return; } 
-  window.removeEventListener('touchmove', markTouchMove, true); 
-  window.removeEventListener('touchend', markTouchEndCheck, true); 
-  window.removeEventListener('touchcancel', resetTouch, true); 
- } 
- function resetTouch() { 
-  touchStart = null; 
-  touchMoved = false; 
-  touchScrollRoot = null; 
-  touchScrollTop = 0; 
-  clearTouchTracking(); 
- } 
- function markTouchMove(event) { 
-  let currentScrollTop = 0; 
-  const point = touchStart ? getTouchPoint(event) : null; 
-  if (point) { 
-   if (Math.floor(Math.abs(point.x - touchStart.x) / 11)) { touchMoved = true; } 
-   if (Math.floor(Math.abs(point.y - touchStart.y) / 11)) { touchMoved = true; } 
-  } 
-  if (!touchScrollRoot) { return; } 
-  currentScrollTop = typeof touchScrollRoot.scrollTop === 'number' ? touchScrollRoot.scrollTop : 0; 
-  if (Math.floor(Math.abs(currentScrollTop - touchScrollTop) / 4)) { touchMoved = true; } 
- } 
- function markTouchEndCheck() { 
-  let currentScrollTop = 0; 
-  if (!touchScrollRoot) { return; } 
-  currentScrollTop = typeof touchScrollRoot.scrollTop === 'number' ? touchScrollRoot.scrollTop : 0; 
-  if (Math.floor(Math.abs(currentScrollTop - touchScrollTop) / 4)) { touchMoved = true; } 
- } 
- function markTouchStart(event) { 
-  touchStart = getTouchPoint(event); 
-  touchMoved = false; 
+ }
+ function clearTouchTracking() {
+  if (typeof window === 'undefined') { return; }
+  window.removeEventListener('touchmove', markTouchMove, true);
+  window.removeEventListener('touchend', markTouchEndCheck, true);
+  window.removeEventListener('touchcancel', resetTouch, true);
+ }
+ function resetTouch() {
+  touchStart = null;
+  touchMoved = false;
+  touchScrollRoot = null;
+  touchScrollTop = 0;
+  clearTouchTracking();
+ }
+ function markTouchMove(event) {
+  let currentScrollTop = 0;
+  const point = touchStart ? getTouchPoint(event) : null;
+  if (point) {
+   if (Math.floor(Math.abs(point.x - touchStart.x) / 11)) { touchMoved = true; }
+   if (Math.floor(Math.abs(point.y - touchStart.y) / 11)) { touchMoved = true; }
+  }
+  if (!touchScrollRoot) { return; }
+  currentScrollTop = typeof touchScrollRoot.scrollTop === 'number' ? touchScrollRoot.scrollTop : 0;
+  if (Math.floor(Math.abs(currentScrollTop - touchScrollTop) / 4)) { touchMoved = true; }
+ }
+ function markTouchEndCheck() {
+  let currentScrollTop = 0;
+  if (!touchScrollRoot) { return; }
+  currentScrollTop = typeof touchScrollRoot.scrollTop === 'number' ? touchScrollRoot.scrollTop : 0;
+  if (Math.floor(Math.abs(currentScrollTop - touchScrollTop) / 4)) { touchMoved = true; }
+ }
+ function markTouchStart(event) {
+  lastHandledType = "";
+  touchStart = getTouchPoint(event);
+  touchMoved = false;
   lastPressAt = Date.now();
-  touchScrollRoot = findScrollRoot(element); 
-  touchScrollTop = typeof touchScrollRoot.scrollTop === 'number' ? touchScrollRoot.scrollTop : 0; 
-  if (typeof window !== 'undefined') { 
-   window.addEventListener('touchmove', markTouchMove, { passive: true, capture: true }); 
-   window.addEventListener('touchend', markTouchEndCheck, { passive: true, capture: true }); 
-   window.addEventListener('touchcancel', resetTouch, { passive: true, capture: true }); 
-  } 
- } 
- function run(event) { 
-  const now = Date.now(); 
-  if (event) { 
-   if (event.type === 'pointerup') { 
-    if (event.pointerType === 'mouse') { if (event.button !== 0) { return; } } 
-    else if (event.pointerType === 'touch') { return; } 
-    else if (event.pointerType) { lastPressAt = now; } 
-   } 
+  touchScrollRoot = findScrollRoot(element);
+  touchScrollTop = typeof touchScrollRoot.scrollTop === 'number' ? touchScrollRoot.scrollTop : 0;
+  if (typeof window !== 'undefined') {
+   window.addEventListener('touchmove', markTouchMove, { passive: true, capture: true });
+   window.addEventListener('touchend', markTouchEndCheck, { passive: true, capture: true });
+   window.addEventListener('touchcancel', resetTouch, { passive: true, capture: true });
+  }
+ }
+ function didJustHandle() {
+  return lastHandledType && (Date.now() - lastPressAt) < 500;
+ }
+ function run(event) {
+  if (didJustHandle()) { return; }
+  const now = Date.now();
+  if (event) {
+   if (event.type === 'pointerup') {
+    if (event.pointerType === 'mouse') { if (event.button !== 0) { return; } }
+    else if (event.pointerType === 'touch') { return; }
+    else if (event.pointerType) { return; }
+    lastPressAt = now;
+   }
    if (event.type === 'touchend') {
     markTouchEndCheck();
     if (touchMoved) { lastPressAt = now; resetTouch(); return; }
@@ -121,13 +132,15 @@ function bindPress(element, handler) {
     if (event.cancelable) { event.preventDefault(); }
    }
    if (event.type === 'touchcancel') { lastPressAt = now; resetTouch(); return; }
-   if (event.type === 'click') { if (lastPressAt) { if (!Math.floor((now - lastPressAt) / 700)) { return; } } }
-  } 
-  handler(event); 
- } 
- element.addEventListener('touchstart', markTouchStart, { passive: true }); 
- element.addEventListener('touchmove', markTouchMove, { passive: true }); 
- element.addEventListener('touchcancel', run, { passive: true }); 
+   if (event.type === 'click') { if (lastPressAt) { if (!Math.floor((now - lastPressAt) / 500)) { return; } } }
+  }
+  lastHandledType = event ? event.type : "";
+  lastPressAt = now;
+  handler(event);
+ }
+ element.addEventListener('touchstart', markTouchStart, { passive: true });
+ element.addEventListener('touchmove', markTouchMove, { passive: true });
+ element.addEventListener('touchcancel', run, { passive: true });
  element.addEventListener('touchend', run, { passive: false }); 
  if (typeof window !== 'undefined') { if ('PointerEvent' in window) { element.addEventListener('pointerup', run); } } 
  element.addEventListener('click', run); 
@@ -346,7 +359,7 @@ function bindMobileInputFocus(element, shouldFocus) {
  }
 function writeStore() { 
  try { 
- window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ lists: state.lists, deletedBuiltins: state.deletedBuiltins, updatedAt: state.storeUpdatedAt })); 
+ window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ lists: state.lists, deletedBuiltins: state.deletedBuiltins, deletedListIds: state.deletedListIds, updatedAt: state.storeUpdatedAt })); 
  } catch (error) { 
  console.warn("custom lists storage error", error); 
  } 
@@ -527,18 +540,11 @@ function addHistorySession(session) {
  state.editingEntryId = "";
  }
  function loadStore() {
- let raw = null;
- LEGACY_KEYS.forEach(function (key) {
- const candidate = readJson(key);
- if (raw) { return; }
- if (Array.isArray(candidate)) { raw = { lists: candidate, deletedBuiltins: [] }; return; }
- if (!candidate) { return; }
- if (Array.isArray(candidate.lists)) { raw = { lists: candidate.lists, deletedBuiltins: safeArray(candidate.deletedBuiltins), updatedAt: Number(candidate.updatedAt) }; }
- });
- state.storeUpdatedAt = Number(raw ? raw.updatedAt : 0);
- if (!Number.isFinite(state.storeUpdatedAt)) { state.storeUpdatedAt = 0; }
- state.deletedBuiltins = uniqueValues(safeArray(raw ? raw.deletedBuiltins : []));
- state.lists = safeArray(raw ? raw.lists : []).map(sanitizeList).filter(Boolean);
+ // Lists are loaded ONLY from Supabase, never localStorage
+ cloudListsSnapshot = getCloudLists();
+ state.deletedBuiltins = [];
+ state.deletedListIds = [];
+ state.lists = (cloudListsSnapshot || []).map(sanitizeList).filter(Boolean);
  buildBuiltinLists().forEach(function (builtin) {
  if (state.deletedBuiltins.indexOf(builtin.source) !== -1) { return; }
  if (!state.lists.some(function (list) { return list.source === builtin.source; })) { state.lists.push(builtin); }
@@ -548,21 +554,28 @@ function addHistorySession(session) {
  if (!state.lists.some(function (list) { return list.id === state.editorListId; })) { state.editorListId = ""; state.entryMode = ""; }
  syncDrafts();
  }
- function setLists(nextLists, nextDeletedBuiltins) {
- state.lists = sortLists(nextLists);
+ function saveToCloud() {
+ // Push only custom lists to Supabase (not builtins)
+ var customLists = state.lists.filter(function (list) { return list.source !== "builtin-irregular" && list.source !== "builtin-food"; });
+ setCloudLists(customLists);
+ }
+ function setLists(nextLists, nextDeletedBuiltins, nextDeletedListIds) {
+ const resolvedDeletedListIds = nextDeletedListIds ? uniqueValues(nextDeletedListIds) : state.deletedListIds;
+ state.deletedListIds = resolvedDeletedListIds;
+ state.lists = sortLists(nextLists).filter(function (list) { return state.deletedListIds.indexOf(list.id) === -1; });
  state.deletedBuiltins = nextDeletedBuiltins ? uniqueValues(nextDeletedBuiltins) : state.deletedBuiltins;
  state.storeUpdatedAt = Date.now();
  if (!state.lists.some(function (list) { return list.id === state.selectedId; })) { state.selectedId = state.lists[0] ? state.lists[0].id : ""; }
  if (!state.lists.some(function (list) { return list.id === state.editorListId; })) { state.editorListId = ""; state.entryMode = ""; }
  syncDrafts();
- writeStore();
+ saveToCloud();
  render();
  ensureTriggerPlacement();
  normalizeBuiltinTestUi();
  }
  function showPanel() { state.open = true; overlay.hidden = false; lockDocumentScroll(); }
 function openPanel() { loadStore(); state.editorListId = ""; state.entryMode = ""; showPanel(); render(); }
-function openCreatePanel() { loadStore(); state.notice = ""; showPanel(); createList(); }
+function openCreatePanel() { state.notice = ""; syncDrafts(); showPanel(); createList(); }
 function openHomeEditor(listId) { loadStore(); showPanel(); openListEditor(listId); }
  function closePanel() { state.open = false; overlay.hidden = true; if (!quizState.open) { unlockDocumentScroll(); } }
  function makeUniqueListName() {
@@ -601,12 +614,14 @@ function openHomeEditor(listId) { loadStore(); showPanel(); openListEditor(listI
  function removeListById(listId) {
  const selected = state.lists.find(function (list) { return list.id === listId; });
  let nextDeletedBuiltins = state.deletedBuiltins.slice();
+ let nextDeletedListIds = state.deletedListIds.slice();
  if (!selected) { return; }
 if (!window.confirm("Удалить список \"" + selected.name + "\"?2")) { return; }
  if (selected.source.indexOf("builtin-") === 0) { nextDeletedBuiltins = uniqueValues(nextDeletedBuiltins.concat(selected.source)); }
+ if (selected.source.indexOf("builtin-") !== 0) { nextDeletedListIds = uniqueValues(nextDeletedListIds.concat(selected.id)); }
  if (state.editorListId === selected.id) { state.editorListId = ""; state.entryMode = ""; }
  state.notice = "Список удален.";
- setLists(state.lists.filter(function (list) { return list.id !== selected.id; }), nextDeletedBuiltins);
+ setLists(state.lists.filter(function (list) { return list.id !== selected.id; }), nextDeletedBuiltins, nextDeletedListIds);
  }
  function deleteSelectedList() {
  const selected = getSelectedList();
@@ -2659,68 +2674,18 @@ normalizeBuiltinTestUi();
 });  
 observer.observe(document.body, { childList: true, subtree: true });  
 ensureTriggerPlacement();  
-}function refreshCloudState() {  
-const previousSelectedId = state.selectedId;  
-const previousEditorListId = state.editorListId;  
-const previousEditingEntryId = state.editingEntryId;  
-const previousEntryMode = state.entryMode;  
-const termInput = document.getElementById("dcl-entry-term");  
-const translationsInput = document.getElementById("dcl-entry-translations");  
-const bulkInput = document.getElementById("dcl-bulk-text");  
-const renameNameInput = document.getElementById("dcl-rename-name");  
-const renameEmojiInput = document.getElementById("dcl-rename-emoji");  
-const entrySearchInput = document.getElementById("dcl-entry-search");  
-const previousTerm = termInput ? termInput.value : state.term;  
-const previousTranslations = translationsInput ? translationsInput.value : state.translations;  
-const previousBulk = bulkInput ? bulkInput.value : state.bulk;  
-const previousRenameName = renameNameInput ? renameNameInput.value : state.renameName;  
-const previousRenameEmoji = renameEmojiInput ? renameEmojiInput.value : state.renameEmoji;  
-const previousEntrySearch = entrySearchInput ? entrySearchInput.value : state.entrySearch;  
-const activeElement = document.activeElement;  
-let activeId = "";  
-if (activeElement) { if (activeElement.id) { activeId = activeElement.id; } }  
-const previousScrollTop = body ? body.scrollTop : 0;  
-loadStore();  
-if (previousSelectedId) {  
-if (state.lists.some(function (list) { return list.id === previousSelectedId; })) { state.selectedId = previousSelectedId; }  
-}  
-if (previousEditorListId) {  
-const sameList = state.lists.find(function (list) { return list.id === previousEditorListId; });  
-if (sameList) {  
-state.editorListId = previousEditorListId;  
-state.renameName = previousRenameName;  
-state.renameEmoji = previousRenameEmoji;  
-state.entrySearch = previousEntrySearch;  
-if (previousEditingEntryId) {  
-if (sameList.entries.some(function (entry) { return entry.id === previousEditingEntryId; })) {  
-state.editingEntryId = previousEditingEntryId;  
-state.entryMode = "manual";  
-state.term = previousTerm;  
-state.translations = previousTranslations;  
-}  
-}if (!state.editingEntryId) {  
-if (previousEntryMode === "manual") {  
-state.entryMode = "manual";  
-state.term = previousTerm;  
-state.translations = previousTranslations;  
-state.bulk = "";  
-} else if (previousEntryMode) {  
-state.entryMode = previousEntryMode;  
-state.bulk = previousBulk;  
-}  
-}  
-}  
-}  
-render();  
-if (previousEditorListId) {  
-if (body) { body.scrollTop = previousScrollTop; }  
-if (activeId) {  
-const nextActive = document.getElementById(activeId);  
-if (nextActive) { if (typeof nextActive.focus === "function") { try { nextActive.focus({ preventScroll: true }); } catch (error) { try { nextActive.focus(); } catch (innerError) {} } } }  
-}  
-}  
-ensureTriggerPlacement();  
-normalizeBuiltinTestUi();  
+}function refreshCloudState() {
+if (state.editorListId) { return; }
+const previousSelectedId = state.selectedId;
+const previousScrollTop = body ? body.scrollTop : 0;
+loadStore();
+if (previousSelectedId) {
+if (state.lists.some(function (list) { return list.id === previousSelectedId; })) { state.selectedId = previousSelectedId; }
+}
+render();
+if (body) { body.scrollTop = previousScrollTop; }
+ensureTriggerPlacement();
+normalizeBuiltinTestUi();
 }  
 function startInit() {  
 loadStore();  
@@ -2730,8 +2695,8 @@ normalizeBuiltinTestUi();
 window.addEventListener("dcl-cloud-sync", refreshCloudState);  
 if (typeof window.__dclForceCloudPull === "function") { window.setTimeout(function () { window.__dclForceCloudPull().then(refreshCloudState).catch(function () { return null; }); }, 0); }  
 }  
-function init() {  
-Promise.resolve(window.__dclCloudReady).catch(function () { return null; }).then(startInit);  
+function init() {
+startInit();
 }  
 if (document.readyState === "loading") {  
 document.addEventListener("DOMContentLoaded", init, { once: true });  
