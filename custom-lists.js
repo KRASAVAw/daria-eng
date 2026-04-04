@@ -554,12 +554,12 @@ function addHistorySession(session) {
  if (!state.lists.some(function (list) { return list.id === state.editorListId; })) { state.editorListId = ""; state.entryMode = ""; }
  syncDrafts();
  }
- function saveToCloud() {
+ function saveToCloud(forcePush) {
  // Push only custom lists to Supabase (not builtins)
  var customLists = state.lists.filter(function (list) { return list.source !== "builtin-irregular" && list.source !== "builtin-food"; });
- setCloudLists(customLists);
+ setCloudLists(customLists, forcePush);
  }
- function setLists(nextLists, nextDeletedBuiltins, nextDeletedListIds) {
+ function setLists(nextLists, nextDeletedBuiltins, nextDeletedListIds, forcePush) {
  const resolvedDeletedListIds = nextDeletedListIds ? uniqueValues(nextDeletedListIds) : state.deletedListIds;
  state.deletedListIds = resolvedDeletedListIds;
  state.lists = sortLists(nextLists).filter(function (list) { return state.deletedListIds.indexOf(list.id) === -1; });
@@ -568,7 +568,7 @@ function addHistorySession(session) {
  if (!state.lists.some(function (list) { return list.id === state.selectedId; })) { state.selectedId = state.lists[0] ? state.lists[0].id : ""; }
  if (!state.lists.some(function (list) { return list.id === state.editorListId; })) { state.editorListId = ""; state.entryMode = ""; }
  syncDrafts();
- saveToCloud();
+ saveToCloud(forcePush);
  render();
  ensureTriggerPlacement();
  normalizeBuiltinTestUi();
